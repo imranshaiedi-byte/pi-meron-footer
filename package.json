@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "Collapsed tool outputs + padded single-row status bar with model, thinking level, and context usage",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": ["./index.ts"],
+    "themes": ["./themes"]
   },
-  "keywords": ["pi", "pi-agent", "pi-extension", "ui", "status-bar", "collapse-tools"],
-  "files": ["index.ts"]
+  "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "ui", "status-bar", "collapse-tools"],
+  "files": ["index.ts", "themes"]
 }

@@ -24,19 +24,27 @@ Single-row padded footer (3-space left/right padding):
 
 ## Install
 
-### Via pi install (recommended)
-
 ```bash
 pi install git:github.com/imranshaiedi-byte/pi-meron-ui
 ```
 
-### Manual
+## Theme
 
-```bash
-cp index.ts ~/.pi/agent/extensions/pi-meron-ui.ts
+Includes a **One Dark** theme. Select it via `/settings` → Theme, or in `~/.pi/agent/settings.json`:
+
+```json
+{
+  "theme": "one-dark"
+}
 ```
 
-Then `/reload` in pi or restart.
+| Element | Color |
+|---------|-------|
+| Tool title | Blue #61afef |
+| Tool success bg | Dark green tint |
+| Tool error bg | Dark red tint |
+| Tool pending bg | Cool dark |
+| User message bg | Subtle grey |
 
 ## License
 
