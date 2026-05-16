@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/earendil-works/pi-mono/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
-	"name": "one-dark",
+	"name": "meron-custom",
 	"vars": {
 		"cyan": "#00d7ff",
 		"blue": "#5f87ff",
@@ -20,8 +20,8 @@
 	},
 	"colors": {
 		"accent": "accent",
-		"border": "blue",
-		"borderAccent": "cyan",
+		"border": "#4b5263",
+		"borderAccent": "#4b5263",
 		"borderMuted": "darkGray",
 		"success": "green",
 		"error": "red",
@@ -68,12 +68,12 @@
 		"syntaxOperator": "#D4D4D4",
 		"syntaxPunctuation": "#D4D4D4",
 
-		"thinkingOff": "#5c6370",
+		"thinkingOff": "#4b5263",
 		"thinkingMinimal": "#61afef",
-		"thinkingLow": "#56b6c2",
-		"thinkingMedium": "#98c379",
-		"thinkingHigh": "#e5c07b",
-		"thinkingXhigh": "#e06c75",
+		"thinkingLow": "#8b5cf6",
+		"thinkingMedium": "#c678dd",
+		"thinkingHigh": "#e5a55b",
+		"thinkingXhigh": "#ef4444",
 
 		"bashMode": "green"
 	},
