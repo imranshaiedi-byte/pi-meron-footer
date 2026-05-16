@@ -310,8 +310,8 @@ export default function (pi: ExtensionAPI) {
 					const lines: string[] = [];
 					lines.push(
 						twoColumnLine(
-							theme.fg("dim", leftSide),
-							theme.fg("dim", rightSide),
+							theme.fg("text", leftSide),
+							theme.fg("text", rightSide),
 							width,
 							innerWidth,
 						),
