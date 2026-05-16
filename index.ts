@@ -40,7 +40,7 @@ const RIGHT_PAD = 3;
 
 function makeRenderCall(toolName: string) {
 	return (args: any, theme: any) => {
-		const title = theme.fg("toolTitle", theme.bold(toolName));
+		const title = theme.fg("dim", toolName);
 		let params = "";
 
 		switch (toolName) {
@@ -50,33 +50,33 @@ function makeRenderCall(toolName: string) {
 					cmd.length > BASH_CMD_COLLAPSE
 						? cmd.slice(0, BASH_CMD_COLLAPSE) + "…"
 						: cmd;
-				params = theme.fg("muted", truncated);
+				params = theme.fg("dim", truncated);
 				if (args.timeout)
 					params += theme.fg("dim", ` (timeout: ${args.timeout}s)`);
 				break;
 			}
 			case "read":
-				params = theme.fg("accent", args.path ?? "");
+				params = theme.fg("dim", args.path ?? "");
 				if (args.offset) params += theme.fg("dim", ` offset=${args.offset}`);
 				if (args.limit) params += theme.fg("dim", ` limit=${args.limit}`);
 				break;
 			case "write":
-				params = theme.fg("accent", args.path ?? "");
+				params = theme.fg("dim", args.path ?? "");
 				break;
 			case "edit":
-				params = theme.fg("accent", args.path ?? "");
+				params = theme.fg("dim", args.path ?? "");
 				break;
 			case "grep":
-				params = theme.fg("accent", args.pattern ?? "");
-				if (args.path) params += " " + theme.fg("muted", args.path);
+				params = theme.fg("dim", args.pattern ?? "");
+				if (args.path) params += " " + theme.fg("dim", args.path);
 				if (args.glob) params += " " + theme.fg("dim", args.glob);
 				break;
 			case "find":
-				params = theme.fg("accent", args.pattern ?? "");
-				if (args.path) params += " " + theme.fg("muted", args.path);
+				params = theme.fg("dim", args.pattern ?? "");
+				if (args.path) params += " " + theme.fg("dim", args.path);
 				break;
 			case "ls":
-				params = theme.fg("accent", args.path ?? ".");
+				params = theme.fg("dim", args.path ?? ".");
 				break;
 			default:
 				params = theme.fg("dim", JSON.stringify(args));
@@ -217,8 +217,8 @@ export default function (pi: ExtensionAPI) {
 		execute: editTool.execute,
 		renderShell: "self",
 		renderCall(args: any, theme: any) {
-			const title = theme.fg("toolTitle", theme.bold("edit "));
-			const path = theme.fg("accent", args.path ?? "");
+			const title = theme.fg("dim", "edit ");
+			const path = theme.fg("dim", args.path ?? "");
 			const box = new Box(1, 1, (s: string) => theme.bg("toolSuccessBg", s));
 			box.addChild(new Text(`${title}${path}`, 0, 0));
 			return box;
