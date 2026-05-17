@@ -59,12 +59,12 @@
     "syntaxType": "dim",
     "syntaxOperator": "muted",
     "syntaxPunctuation": "muted",
-    "thinkingOff": "bg",
-    "thinkingMinimal": "surface",
-    "thinkingLow": "elevated",
-    "thinkingMedium": "borderStrong",
-    "thinkingHigh": "dim",
-    "thinkingXhigh": "text",
+    "thinkingOff": "border",
+    "thinkingMinimal": "border",
+    "thinkingLow": "border",
+    "thinkingMedium": "border",
+    "thinkingHigh": "border",
+    "thinkingXhigh": "border",
     "bashMode": "dim"
   },
   "export": {
