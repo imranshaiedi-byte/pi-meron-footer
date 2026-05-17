@@ -2,11 +2,12 @@
   "$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
   "name": "minimal-flat",
   "vars": {
-    "bg": "#1a1a1a",
-    "surface": "#222222",
-    "elevated": "#2a2a2a",
-    "muted": "#555555",
-    "dim": "#777777",
+    "black": "#000000",
+    "surface": "#111111",
+    "elevated": "#1a1a1a",
+    "muted": "#666666",
+    "dim": "#999999",
+    "white": "#cccccc",
     "green": "#4ade80",
     "red": "#f87171"
   },
@@ -20,26 +21,26 @@
     "warning": "dim",
     "muted": "muted",
     "dim": "dim",
-    "text": "",
+    "text": "white",
     "thinkingText": "muted",
 
     "selectedBg": "elevated",
     "userMessageBg": "surface",
-    "userMessageText": "",
+    "userMessageText": "white",
     "customMessageBg": "surface",
-    "customMessageText": "",
+    "customMessageText": "white",
     "customMessageLabel": "dim",
     "toolPendingBg": "surface",
     "toolSuccessBg": "surface",
     "toolErrorBg": "surface",
-    "toolTitle": "",
+    "toolTitle": "white",
     "toolOutput": "muted",
 
-    "mdHeading": "",
+    "mdHeading": "white",
     "mdLink": "dim",
     "mdLinkUrl": "muted",
     "mdCode": "dim",
-    "mdCodeBlock": "",
+    "mdCodeBlock": "white",
     "mdCodeBlockBorder": "surface",
     "mdQuote": "muted",
     "mdQuoteBorder": "surface",
@@ -51,12 +52,12 @@
     "toolDiffContext": "muted",
 
     "syntaxComment": "muted",
-    "syntaxKeyword": "",
-    "syntaxFunction": "",
-    "syntaxVariable": "",
-    "syntaxString": "",
-    "syntaxNumber": "",
-    "syntaxType": "",
+    "syntaxKeyword": "white",
+    "syntaxFunction": "white",
+    "syntaxVariable": "white",
+    "syntaxString": "white",
+    "syntaxNumber": "white",
+    "syntaxType": "white",
     "syntaxOperator": "muted",
     "syntaxPunctuation": "muted",
 
@@ -70,8 +71,8 @@
     "bashMode": "dim"
   },
   "export": {
-    "pageBg": "#1a1a1a",
-    "cardBg": "#222222",
-    "infoBg": "#2a2a2a"
+    "pageBg": "#000000",
+    "cardBg": "#111111",
+    "infoBg": "#1a1a1a"
   }
 }
