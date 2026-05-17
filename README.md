@@ -35,9 +35,9 @@ Includes a **meron-custom** theme. Select it via `/settings` → Theme, or in `~
 | Element | Color |
 |---------|-------|
 | Tool title | Blue #61afef |
-| Tool success bg | Dark green tint |
-| Tool error bg | Dark red tint |
-| Tool pending bg | Cool dark |
+| Tool success bg | Transparent/default terminal bg |
+| Tool error bg | Transparent/default terminal bg |
+| Tool pending bg | Transparent/default terminal bg |
 | User message bg | Subtle grey |
 
 Thinking level borders follow a cool→warm progression:
