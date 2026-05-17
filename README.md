@@ -1,14 +1,8 @@
 # pi-meron-ui
 
-Pi extension that combines collapsed tool outputs with a clean padded status bar.
+Pi extension that provides a clean padded status bar and the meron-custom theme.
 
 ## Features
-
-### Collapse Tools
-- Tool calls show command/parameters but hide output by default
-- Press `Ctrl+O` to expand and view full tool output
-- Long bash commands are truncated when collapsed
-- Handles all built-in tools: read, bash, write, edit, grep, find, ls
 
 ### Status Bar
 Single-row padded footer (3-space left/right padding):

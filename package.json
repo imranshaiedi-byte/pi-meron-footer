@@ -1,11 +1,11 @@
 {
   "name": "pi-meron-ui",
   "version": "1.0.0",
-  "description": "Collapsed tool outputs + padded single-row status bar with model, thinking level, and context usage",
+  "description": "Padded single-row status bar and meron-custom theme for pi",
   "pi": {
     "extensions": ["./index.ts"],
     "themes": ["./themes"]
   },
-  "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "ui", "status-bar", "collapse-tools"],
+  "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "ui", "status-bar", "theme"],
   "files": ["index.ts", "themes"]
 }
