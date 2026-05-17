@@ -4,6 +4,10 @@ Pi extension that provides a clean padded status bar and the meron-custom theme.
 
 ## Features
 
+### Tool Rows
+Transparent tool rows with top/bottom borders when `toolBackground` is `border`/`outlines`.
+Set `toolBackground` to `transparent` for no borders, or `default` for Pi's standard boxed backgrounds.
+
 ### Status Bar
 Single-row padded footer (3-space left/right padding):
 
