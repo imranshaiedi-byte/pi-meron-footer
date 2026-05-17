@@ -61,12 +61,12 @@
 		"syntaxOperator": "",
 		"syntaxPunctuation": "dimGrey",
 
-		"thinkingOff": "darkerGrey",
-		"thinkingMinimal": "dimGrey",
-		"thinkingLow": "warmGrey",
+		"thinkingOff": "accent",
+		"thinkingMinimal": "accent",
+		"thinkingLow": "accent",
 		"thinkingMedium": "accent",
-		"thinkingHigh": "red",
-		"thinkingXhigh": "red",
+		"thinkingHigh": "accent",
+		"thinkingXhigh": "accent",
 
 		"bashMode": "accent"
 	},
