@@ -1,25 +1,15 @@
 /**
- * Meron UI Extension
+ * Meron Footer Extension
  *
- * Adds a clean padded footer/status bar and transparent bordered tool rows.
- * Theme resources are provided via the package manifest.
+ * Adds a clean padded footer/status bar for pi.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Container, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 const LEFT_PAD = 3;
 const RIGHT_PAD = 3;
 const ASCII_ELLIPSIS = "...";
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
-const TRANSPARENT_RESET = "\x1b[0m\x1b[49m";
-const TOOL_BORDER_PATCH_FLAG = Symbol.for("meron-ui:tool-border-patch");
-const TOOL_RENDER_CACHE = Symbol.for("meron-ui:tool-render-cache");
-
-let currentTheme: Theme | null = null;
 
 type Theme = {
 	fg: (name: string, value: string) => string;
@@ -29,115 +19,6 @@ type FooterData = {
 	getGitBranch: () => string | null;
 	onBranchChange: (listener: () => void) => () => void;
 };
-
-type ToolBackgroundMode = "default" | "transparent" | "border" | "outlines";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Tool rendering
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function settingsPath(): string | null {
-	const home = process.env.HOME || process.env.USERPROFILE;
-	return home ? join(home, ".pi", "agent", "settings.json") : null;
-}
-
-function readToolBackgroundMode(): ToolBackgroundMode {
-	const path = settingsPath();
-	if (!path || !existsSync(path)) return "border";
-
-	try {
-		const settings = JSON.parse(readFileSync(path, "utf8")) as { toolBackground?: ToolBackgroundMode };
-		return settings.toolBackground ?? "border";
-	} catch {
-		return "border";
-	}
-}
-
-function setThemeBg(theme: unknown, key: string, value: string): void {
-	const themeAny = theme as any;
-	if (themeAny.bgColors instanceof Map) {
-		themeAny.bgColors.set(key, value);
-	} else if (themeAny.bgColors && typeof themeAny.bgColors === "object") {
-		themeAny.bgColors[key] = value;
-	}
-}
-
-function applyToolBackgroundMode(theme: unknown): void {
-	const mode = readToolBackgroundMode();
-	if (mode === "default") return;
-	setThemeBg(theme, "toolPendingBg", "\x1b[49m");
-	setThemeBg(theme, "toolSuccessBg", "\x1b[49m");
-	setThemeBg(theme, "toolErrorBg", "\x1b[49m");
-}
-
-function stripAnsi(text: string): string {
-	return text.replace(ANSI_RE, "");
-}
-
-function isBlankLine(line: string): boolean {
-	return stripAnsi(line).trim().length === 0;
-}
-
-function isToolExecutionLike(value: unknown): value is { toolName: string; toolCallId: string } {
-	if (!value || typeof value !== "object") return false;
-	const candidate = value as Record<string, unknown>;
-	return typeof candidate.toolName === "string" && typeof candidate.toolCallId === "string";
-}
-
-function borderLine(width: number): string {
-	const line = "─".repeat(Math.max(1, width));
-	return currentTheme ? `${currentTheme.fg("borderMuted", line)}${TRANSPARENT_RESET}` : line;
-}
-
-function clampLine(line: string, width: number): string {
-	if (width <= 0) return "";
-	return visibleWidth(line) > width ? truncateToWidth(line, width, "") : line;
-}
-
-function patchToolBorders(): void {
-	const proto = Container.prototype as any;
-	if (proto[TOOL_BORDER_PATCH_FLAG]) return;
-
-	const originalRender = proto.render;
-	proto.render = function meronToolBorderRender(width: number): string[] {
-		if (isToolExecutionLike(this)) {
-			const mode = readToolBackgroundMode();
-			const cached = this[TOOL_RENDER_CACHE];
-			if (cached?.width === width && cached?.mode === mode) return cached.lines;
-
-			const rendered = originalRender.call(this, width) as string[];
-			if (!Array.isArray(rendered) || rendered.length === 0 || mode === "default") {
-				this[TOOL_RENDER_CACHE] = { width, mode, lines: rendered };
-				return rendered;
-			}
-
-			let start = 0;
-			while (start < rendered.length && isBlankLine(rendered[start])) start++;
-
-			let end = rendered.length - 1;
-			while (end >= start && isBlankLine(rendered[end])) end--;
-
-			if (start > end) return rendered;
-
-			const core = rendered.slice(start, end + 1).map((line) => clampLine(line, width));
-			const spacer = " ".repeat(Math.max(0, width));
-			const lines = mode === "transparent"
-				? [spacer, ...core]
-				: [spacer, borderLine(width), ...core, borderLine(width)];
-
-			this[TOOL_RENDER_CACHE] = { width, mode, lines };
-			return lines;
-		}
-
-		return originalRender.call(this, width);
-	};
-
-	proto[TOOL_BORDER_PATCH_FLAG] = true;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Footer rendering
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function formatTokens(count: number): string {
 	if (!Number.isFinite(count) || count <= 0) return "?";
@@ -223,17 +104,9 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 	}));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Extension entry point
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export default function meronUi(pi: ExtensionAPI) {
-	patchToolBorders();
-
+export default function meronFooter(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
-		currentTheme = ctx.ui.theme;
-		applyToolBackgroundMode(ctx.ui.theme);
 		setPaddedFooter(pi, ctx);
 	});
 }

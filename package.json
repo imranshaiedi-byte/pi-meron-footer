@@ -1,11 +1,10 @@
 {
-  "name": "pi-meron-ui",
+  "name": "pi-meron-footer",
   "version": "1.0.0",
-  "description": "Padded single-row status bar and meron-custom theme for pi",
+  "description": "Clean padded status bar footer for pi",
   "pi": {
-    "extensions": ["./index.ts"],
-    "themes": ["./themes"]
+    "extensions": ["./index.ts"]
   },
-  "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "ui", "status-bar", "theme"],
-  "files": ["index.ts", "themes"]
+  "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "footer", "status-bar"],
+  "files": ["index.ts"]
 }
