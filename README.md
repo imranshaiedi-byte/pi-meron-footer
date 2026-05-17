@@ -42,6 +42,7 @@ Includes these themes. Select one via `/settings` → Theme, or in `~/.pi/agent/
 | `meron-graphite` | Neutral graphite, high-legibility, restrained cyan accent |
 | `meron-nord` | Cool blue/grey Nord-inspired palette |
 | `meron-tokyo` | Vibrant Tokyo Night-inspired palette |
+| `meron-flat` | Flat minimal — only errors, diffs, and accents are colored |
 
 | Element | Color |
 |---------|-------|
