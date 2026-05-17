@@ -3,14 +3,14 @@
   "name": "grayscale-v2",
   "vars": {
     "bg": "#080808",
-    "surface": "#171717",
-    "elevated": "#2b2b2b",
-    "highlight": "#454545",
-    "border": "#3a3a3a",
-    "borderStrong": "#707070",
-    "muted": "#6a6a6a",
-    "dim": "#b8b8b8",
-    "text": "#e8e8e8",
+    "surface": "#121212",
+    "elevated": "#313131",
+    "highlight": "#555555",
+    "border": "#4a4a4a",
+    "borderStrong": "#898989",
+    "muted": "#868686",
+    "dim": "#c7c7c7",
+    "text": "#e6e6e6",
     "green": "#00ff00",
     "red": "#ff0000"
   },
@@ -69,7 +69,7 @@
   },
   "export": {
     "pageBg": "#080808",
-    "cardBg": "#171717",
-    "infoBg": "#2b2b2b"
+    "cardBg": "#121212",
+    "infoBg": "#313131"
   }
 }
