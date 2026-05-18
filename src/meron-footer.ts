@@ -73,7 +73,7 @@ function renderContextUsage(ctx: any, theme: Theme): string {
 
 	if (percent !== null && percent > 90) return theme.fg("error", display);
 	if (percent !== null && percent > 70) return theme.fg("warning", display);
-	return display;
+	return theme.fg("userMessageText", display);
 }
 
 function modelLabel(ctx: any): string {
@@ -86,18 +86,25 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 		invalidate() {},
 		render(width: number): string[] {
 			const innerWidth = Math.max(0, width - LEFT_PAD - RIGHT_PAD);
+			const footerTextColor = "userMessageText";
+			const separator = theme.fg(footerTextColor, " • ");
 
-			let leftSide = compactCwd(ctx.sessionManager.getCwd());
+			const leftParts = [compactCwd(ctx.sessionManager.getCwd())];
 			const sessionName = ctx.sessionManager.getSessionName();
-			if (sessionName) leftSide += ` • ${sessionName}`;
+			if (sessionName) leftParts.push(sessionName);
 
 			const branch = footerData.getGitBranch();
-			if (branch) leftSide += ` • ${branch}`;
+			if (branch) leftParts.push(branch);
 
-			const rightSide = [modelLabel(ctx), pi.getThinkingLevel(), renderContextUsage(ctx, theme)].join(" • ");
+			const leftSide = leftParts.map((part) => theme.fg(footerTextColor, part)).join(separator);
+			const rightSide = [
+				theme.fg(footerTextColor, modelLabel(ctx)),
+				theme.fg(footerTextColor, pi.getThinkingLevel()),
+				renderContextUsage(ctx, theme),
+			].join(separator);
 
 			return [
-				twoColumnLine(theme.fg("text", leftSide), theme.fg("text", rightSide), width, innerWidth),
+				twoColumnLine(leftSide, rightSide, width, innerWidth),
 				"",
 			];
 		},
