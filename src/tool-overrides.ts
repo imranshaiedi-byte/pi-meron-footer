@@ -545,30 +545,6 @@ function formatRtkSummarySuffix(
   return theme.fg("warning", ` • ${segments.join(" • ")}`);
 }
 
-function getExpandedPreviewLineLimit(
-  lines: string[],
-  config: ToolDisplayConfig,
-): number {
-  const limit = Math.max(0, config.expandedPreviewMaxLines);
-  if (limit === 0) {
-    return lines.length;
-  }
-  return Math.min(lines.length, limit);
-}
-
-function formatExpandedPreviewCapHint(
-  lines: string[],
-  config: ToolDisplayConfig,
-  theme: RenderTheme,
-): string {
-  const cap = Math.max(0, config.expandedPreviewMaxLines);
-  if (cap === 0 || lines.length <= cap) {
-    return "";
-  }
-
-  return `\n${theme.fg("warning", `(display capped at ${cap} lines by tool-display setting)`)}`;
-}
-
 function formatRtkPreviewHint(
   details: unknown,
   config: ToolDisplayConfig,
@@ -678,20 +654,6 @@ function formatBashTruncationHints(
     return "";
   }
   return `\n${theme.fg("warning", `(${hints.join(" • ")})`)}`;
-}
-
-function getBashPreviewLineLimit(
-  lines: string[],
-  options: ToolRenderResultOptions,
-  config: ToolDisplayConfig,
-): number {
-  if (options.expanded) {
-    return getExpandedPreviewLineLimit(lines, config);
-  }
-
-  return config.bashOutputMode === "opencode"
-    ? config.bashCollapsedLines
-    : config.previewLines;
 }
 
 function renderBashLivePreview(

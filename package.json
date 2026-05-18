@@ -8,5 +8,5 @@
     "themes": ["./themes"]
   },
   "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "footer", "status-bar", "tool-rendering"],
-  "files": ["index.ts", "src", "config", "themes"]
+  "files": ["index.ts", "src", "themes"]
 }
