@@ -30,8 +30,8 @@
     "text": "text",
     "thinkingText": "muted",
     "selectedBg": "highlight",
-    "userMessageBg": "userSurface",
-    "userMessageText": "text",
+    "userMessageBg": "",
+    "userMessageText": "peach",
     "customMessageBg": "surface",
     "customMessageText": "text",
     "customMessageLabel": "dim",
@@ -72,7 +72,7 @@
   },
   "export": {
     "pageBg": "#000000",
-    "cardBg": "#2f1808",
+    "cardBg": "#0c0c0c",
     "infoBg": "#181818"
   }
 }
