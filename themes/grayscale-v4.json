@@ -3,10 +3,10 @@
   "name": "grayscale-v4",
   "vars": {
     "bg": "#000000",
-    "surface": "#050505",
+    "surface": "#141414",
     "toolSurface": "#181818",
     "elevated": "#303030",
-    "highlight": "#ffffff",
+    "highlight": "#303030",
     "border": "#777777",
     "borderStrong": "#ffffff",
     "muted": "#8a8a8a",
@@ -70,7 +70,7 @@
   },
   "export": {
     "pageBg": "#000000",
-    "cardBg": "#050505",
+    "cardBg": "#141414",
     "infoBg": "#181818"
   }
 }
