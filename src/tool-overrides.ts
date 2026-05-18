@@ -702,21 +702,19 @@ function renderBashLivePreview(
   details: BashToolDetails | undefined,
 ): Text {
   const lines = prepareOutputLines(rawOutput, options);
-  if (lines.length === 0) {
-    return new Text("", 0, 0);
+  if (!options.expanded) {
+    return new Text(
+      lines.length === 0
+        ? theme.fg("warning", "running...")
+        : `${theme.fg("muted", `↳ ${lines.length} ${pluralize(lines.length, "line")} so far`)}${formatExpandHint(theme)}`,
+      0,
+      0,
+    );
   }
 
-  const maxLines = getBashPreviewLineLimit(lines, options, config);
-  if (!options.expanded && maxLines === 0) {
-    return new Text("", 0, 0);
-  }
-
-  let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
+  let preview = buildPreviewText(lines, lines.length, theme, true);
   if (config.showTruncationHints) {
     preview += formatBashTruncationHints(details, theme);
-  }
-  if (options.expanded) {
-    preview += formatExpandedPreviewCapHint(lines, config, theme);
   }
   return new Text(preview, 0, 0);
 }
@@ -731,25 +729,25 @@ function renderBashErrorResult(
   const lines = prepareOutputLines(rawOutput, options);
   let text = theme.fg("error", "↳ command failed");
 
-  if (lines.length > 0) {
-    const maxLines = getBashPreviewLineLimit(lines, options, config);
-    if (options.expanded || maxLines > 0) {
-      const { shown, remaining } = previewLines(lines, maxLines);
-      text += `\n${shown
-        .map((line) => theme.fg("error", sanitizeAnsiForThemedOutput(line)))
-        .join("\n")}`;
-      if (remaining > 0) {
-        const hint = options.expanded ? "" : " • Ctrl+O to expand";
-        text += `\n${theme.fg("muted", `... (${remaining} more ${pluralize(remaining, "line")}${hint})`)}`;
-      }
+  if (!options.expanded) {
+    if (lines.length > 0) {
+      text += theme.fg("muted", ` • ${lines.length} ${pluralize(lines.length, "line")} returned`);
+      text += formatExpandHint(theme);
     }
+    if (config.showTruncationHints) {
+      text += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
+    }
+    return new Text(text, 0, 0);
+  }
+
+  if (lines.length > 0) {
+    text += `\n${lines
+      .map((line) => theme.fg("error", sanitizeAnsiForThemedOutput(line)))
+      .join("\n")}`;
   }
 
   if (config.showTruncationHints) {
     text += formatBashTruncationHints(details, theme);
-  }
-  if (options.expanded && lines.length > 0) {
-    text += formatExpandedPreviewCapHint(lines, config, theme);
   }
 
   return new Text(text, 0, 0);
@@ -773,22 +771,7 @@ function renderSearchResult(
 
   const lines = prepareOutputLines(extractTextOutput(result), options);
 
-  if (config.searchOutputMode === "hidden") {
-    return new Text("", 0, 0);
-  }
-
-  if (config.searchOutputMode === "count") {
-    if (options.expanded) {
-      const maxLines = getExpandedPreviewLineLimit(lines, config);
-      let preview = buildPreviewText(lines, maxLines, theme, true);
-      if (config.showTruncationHints && details?.truncation?.truncated) {
-        preview += `\n${theme.fg("warning", "(truncated by backend limits)")}`;
-      }
-      preview += formatRtkPreviewHint(details, config, theme);
-      preview += formatExpandedPreviewCapHint(lines, config, theme);
-      return new Text(preview, 0, 0);
-    }
-
+  if (!options.expanded) {
     let summary = formatSearchSummary(
       lines,
       unitLabel,
@@ -802,17 +785,11 @@ function renderSearchResult(
     return new Text(summary, 0, 0);
   }
 
-  const maxLines = options.expanded
-    ? getExpandedPreviewLineLimit(lines, config)
-    : config.previewLines;
-  let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
+  let preview = buildPreviewText(lines, lines.length, theme, true);
   if (config.showTruncationHints && details?.truncation?.truncated) {
     preview += `\n${theme.fg("warning", "(truncated by backend limits)")}`;
   }
   preview += formatRtkPreviewHint(details, config, theme);
-  if (options.expanded) {
-    preview += formatExpandedPreviewCapHint(lines, config, theme);
-  }
   return new Text(preview, 0, 0);
 }
 
@@ -899,35 +876,10 @@ function renderMcpResult(
     return new Text(theme.fg("warning", "running..."), 0, 0);
   }
 
-  if (config.mcpOutputMode === "hidden") {
-    return new Text("", 0, 0);
-  }
-
   const lines = prepareOutputLines(extractTextOutput(result), options);
   const truncation = getMcpTruncationDetails(result.details);
 
-  if (config.mcpOutputMode === "summary") {
-    if (options.expanded) {
-      const maxLines = getExpandedPreviewLineLimit(lines, config);
-      let preview = buildPreviewText(lines, maxLines, theme, true);
-      if (
-        config.showTruncationHints &&
-        (truncation.truncated || truncation.fullOutputPath)
-      ) {
-        const hints: string[] = [];
-        if (truncation.truncated) {
-          hints.push("truncated by backend limits");
-        }
-        if (truncation.fullOutputPath) {
-          hints.push(`full output: ${truncation.fullOutputPath}`);
-        }
-        preview += `\n${theme.fg("warning", `(${hints.join(" • ")})`)}`;
-      }
-      preview += formatRtkPreviewHint(result.details, config, theme);
-      preview += formatExpandedPreviewCapHint(lines, config, theme);
-      return new Text(preview, 0, 0);
-    }
-
+  if (!options.expanded) {
     const lineCount = countNonEmptyLines(lines);
     let summary = theme.fg(
       "muted",
@@ -941,10 +893,7 @@ function renderMcpResult(
     return new Text(summary, 0, 0);
   }
 
-  const maxLines = options.expanded
-    ? getExpandedPreviewLineLimit(lines, config)
-    : config.previewLines;
-  let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
+  let preview = buildPreviewText(lines, lines.length, theme, true);
   if (
     config.showTruncationHints &&
     (truncation.truncated || truncation.fullOutputPath)
@@ -960,10 +909,6 @@ function renderMcpResult(
   }
 
   preview += formatRtkPreviewHint(result.details, config, theme);
-  if (options.expanded) {
-    preview += formatExpandedPreviewCapHint(lines, config, theme);
-  }
-
   return new Text(preview, 0, 0);
 }
 
@@ -1037,26 +982,11 @@ export function registerToolDisplayOverrides(
         }
 
         const config = getConfig();
-        if (config.readOutputMode === "hidden") {
-          return new Text("", 0, 0);
-        }
-
         const details = result.details as ReadToolDetails | undefined;
         const rawOutput = extractTextOutput(result);
         const lines = prepareOutputLines(rawOutput, options);
 
-        if (config.readOutputMode === "summary") {
-          if (options.expanded) {
-            const maxLines = getExpandedPreviewLineLimit(lines, config);
-            let preview = buildPreviewText(lines, maxLines, theme, true);
-            if (config.showTruncationHints && details?.truncation?.truncated) {
-              preview += `\n${theme.fg("warning", "(truncated by backend limits)")}`;
-            }
-            preview += formatRtkPreviewHint(result.details, config, theme);
-            preview += formatExpandedPreviewCapHint(lines, config, theme);
-            return new Text(preview, 0, 0);
-          }
-
+        if (!options.expanded) {
           const summaryLines = compactOutputLines(splitLines(rawOutput), {
             expanded: true,
           });
@@ -1071,17 +1001,11 @@ export function registerToolDisplayOverrides(
           return new Text(summary, 0, 0);
         }
 
-        const maxLines = options.expanded
-          ? getExpandedPreviewLineLimit(lines, config)
-          : config.previewLines;
-        let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
+        let preview = buildPreviewText(lines, lines.length, theme, true);
         if (config.showTruncationHints && details?.truncation?.truncated) {
           preview += `\n${theme.fg("warning", "(truncated by backend limits)")}`;
         }
         preview += formatRtkPreviewHint(result.details, config, theme);
-        if (options.expanded) {
-          preview += formatExpandedPreviewCapHint(lines, config, theme);
-        }
         return new Text(preview, 0, 0);
       },
     });
@@ -1389,22 +1313,12 @@ export function registerToolDisplayOverrides(
       if (lines.length === 0) {
         let text = formatBashNoOutputLine(getStringField(context?.args, "command"), theme);
         if (config.showTruncationHints) {
-          text += formatBashTruncationHints(details, theme);
+          text += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
         }
         return new Text(text, 0, 0);
       }
 
-      if (config.bashOutputMode === "summary") {
-        if (options.expanded) {
-          const maxLines = getExpandedPreviewLineLimit(lines, config);
-          let preview = buildPreviewText(lines, maxLines, theme, true);
-          if (config.showTruncationHints) {
-            preview += formatBashTruncationHints(details, theme);
-          }
-          preview += formatExpandedPreviewCapHint(lines, config, theme);
-          return new Text(preview, 0, 0);
-        }
-
+      if (!options.expanded) {
         let summary = formatBashSummary(
           lines,
           details,
@@ -1413,37 +1327,12 @@ export function registerToolDisplayOverrides(
         );
         summary += formatExpandHint(theme);
         if (config.showTruncationHints) {
-          summary += formatBashTruncationHints(details, theme);
+          summary += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
         }
         return new Text(summary, 0, 0);
       }
 
-      if (config.bashOutputMode === "preview") {
-        const maxLines = options.expanded
-          ? getExpandedPreviewLineLimit(lines, config)
-          : config.previewLines;
-        let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
-        if (config.showTruncationHints) {
-          preview += formatBashTruncationHints(details, theme);
-        }
-        if (options.expanded) {
-          preview += formatExpandedPreviewCapHint(lines, config, theme);
-        }
-        return new Text(preview, 0, 0);
-      }
-
-      if (!options.expanded && config.bashCollapsedLines === 0) {
-        let hidden = theme.fg("muted", "↳ output hidden");
-        if (config.showTruncationHints) {
-          hidden += formatBashTruncationHints(details, theme);
-        }
-        return new Text(hidden, 0, 0);
-      }
-
-      const maxLines = options.expanded
-        ? lines.length
-        : config.bashCollapsedLines;
-      let text = buildPreviewText(lines, maxLines, theme, options.expanded);
+      let text = buildPreviewText(lines, lines.length, theme, true);
       if (config.showTruncationHints) {
         text += formatBashTruncationHints(details, theme);
       }
