@@ -1250,9 +1250,16 @@ export function registerToolDisplayOverrides(
     },
     renderCall(args, theme, context) {
       const command = getStringField(args, "command") ?? "";
-      const display = command.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
-      const summary = context?.expanded ? display : (display.slice(0, 72) || "...");
-      return styledText(context, toolHeader("Bash", summary, theme, context));
+      const flattened = command.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
+      if (context?.expanded) {
+        const header = toolHeader("Bash", "", theme, context).replace(/\s+$/, "");
+        const lines = command.split("\n");
+        if (lines.length <= 1) {
+          return styledText(context, `${header} ${flattened}`);
+        }
+        return styledText(context, `${header}\n${lines.map(l => `  ${l}`).join("\n")}`);
+      }
+      return styledText(context, toolHeader("Bash", flattened.slice(0, 72) || "...", theme, context));
     },
     renderResult(result, options, theme, context) {
       const config = getConfig();
