@@ -1257,7 +1257,16 @@ export function registerToolDisplayOverrides(
         if (lines.length <= 1) {
           return styledText(context, `${header} ${flattened}`);
         }
-        return styledText(context, `${header}\n${lines.map(l => `  ${l}`).join("\n")}`);
+        const TOOL_RULE = "\x1b[38;5;238m";
+        const RESET = "\x1b[0m";
+        const TRANSPARENT_BG = "\x1b[49m";
+        const TR = `${RESET}${TRANSPARENT_BG}`;
+        const pipe = `${TOOL_RULE}│${TR}`;
+        const tee = `${TOOL_RULE}├─${TR}`;
+        const branchLines = lines.map((l, i) =>
+          i < lines.length - 1 ? `${pipe}  ${l}` : `${tee} ${l}`
+        );
+        return styledText(context, `${header}\n${branchLines.join("\n")}`);
       }
       return styledText(context, toolHeader("Bash", flattened.slice(0, 72) || "...", theme, context));
     },
