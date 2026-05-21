@@ -9,7 +9,7 @@ import type {
   ToolDefinition,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   makeToolText,
   patchToolContainerStyle,
@@ -270,6 +270,49 @@ function formatBashNoOutputLine(
     return theme.fg("muted", "Command completed (no output)");
   }
   return theme.fg("muted", "(no output)");
+}
+
+function truncateMiddleToWidth(text: string, width: number): string {
+  if (visibleWidth(text) <= width) {
+    return text;
+  }
+
+  const safeWidth = Math.max(8, width);
+  const headWidth = Math.max(4, Math.floor((safeWidth - 1) * 0.58));
+  const tailWidth = Math.max(3, safeWidth - headWidth - 1);
+  const head = truncateToWidth(text, headWidth, "");
+  const tailSource = [...text].reverse().join("");
+  const tail = [...truncateToWidth(tailSource, tailWidth, "")].reverse().join("");
+  return `${head}…${tail}`;
+}
+
+function formatCollapsedBashCommand(
+  command: string,
+  theme: RenderTheme,
+): string {
+  const rawCommand = command.trim();
+  if (!rawCommand) {
+    return "...";
+  }
+
+  const commandLines = rawCommand
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const flattened = rawCommand.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
+  const display = truncateMiddleToWidth(flattened, 88);
+  const hints: string[] = [];
+
+  if (commandLines.length > 1) {
+    hints.push(`${commandLines.length} lines`);
+  }
+  if (visibleWidth(flattened) > visibleWidth(display)) {
+    hints.push("truncated");
+  }
+
+  return hints.length > 0
+    ? `${display}${theme.fg("muted", ` (${hints.join(" • ")} • Ctrl+O)`)}`
+    : display;
 }
 
 function truncationHint(
@@ -1313,7 +1356,7 @@ export function registerToolDisplayOverrides(
         );
         return styledText(context, `${header}\n${branchLines.join("\n")}`);
       }
-      return styledText(context, toolHeader("Bash", flattened.slice(0, 72) || "...", theme, context));
+      return styledText(context, toolHeader("Bash", formatCollapsedBashCommand(command, theme), theme, context));
     },
     renderResult(result, options, theme, context) {
       const config = getConfig();
