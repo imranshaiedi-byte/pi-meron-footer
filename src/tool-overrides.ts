@@ -9,16 +9,6 @@ import type {
   ToolDefinition,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import {
-  createBashTool,
-  createEditTool,
-  createFindTool,
-  createGrepTool,
-  createLsTool,
-  createReadTool,
-  createWriteTool,
-  formatSize,
-} from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import {
   makeToolText,
@@ -66,19 +56,11 @@ import {
   shouldRenderWriteCallSummary,
 } from "./write-display-utils.js";
 
-interface BuiltInTools {
-  read: ReturnType<typeof createReadTool>;
-  grep: ReturnType<typeof createGrepTool>;
-  find: ReturnType<typeof createFindTool>;
-  ls: ReturnType<typeof createLsTool>;
-  bash: ReturnType<typeof createBashTool>;
-  edit: ReturnType<typeof createEditTool>;
-  write: ReturnType<typeof createWriteTool>;
-}
+type RuntimeToolDefinition = Record<string, unknown>;
+
+type BuiltInTools = Record<BuiltInToolOverrideName, RuntimeToolDefinition>;
 
 type ConfigGetter = () => ToolDisplayConfig;
-
-type RuntimeToolDefinition = Record<string, unknown>;
 
 interface RenderTheme {
   fg(color: string, text: string): string;
@@ -114,7 +96,6 @@ interface PendingDiffPreviewState {
   data?: PendingDiffPreviewData;
 }
 
-const builtInToolCache = new Map<string, BuiltInTools>();
 const RTK_COMPACTION_LABEL = "compacted by RTK";
 export const WRITE_EXECUTION_META_LIMIT = 100;
 const WRITE_EXECUTION_META_STATE_KEY = "__piToolDisplayWriteExecutionMeta";
@@ -161,21 +142,63 @@ function cloneToolParameters<T>(parameters: T, seen = new WeakMap<object, unknow
   return clone as T;
 }
 
-function getBuiltInTools(cwd: string): BuiltInTools {
-  let tools = builtInToolCache.get(cwd);
-  if (!tools) {
-    tools = {
-      read: createReadTool(cwd),
-      grep: createGrepTool(cwd),
-      find: createFindTool(cwd),
-      ls: createLsTool(cwd),
-      bash: createBashTool(cwd),
-      edit: createEditTool(cwd),
-      write: createWriteTool(cwd),
-    };
-    builtInToolCache.set(cwd, tools);
+function getBuiltInTools(pi: ExtensionAPI): BuiltInTools {
+  const allTools = pi.getAllTools() as unknown[];
+  const byName = new Map<string, RuntimeToolDefinition>();
+  for (const tool of allTools) {
+    const name = getTextField(tool, "name");
+    if (name && !byName.has(name)) {
+      byName.set(name, tool as RuntimeToolDefinition);
+    }
   }
-  return tools;
+
+  const resolve = (name: BuiltInToolOverrideName): RuntimeToolDefinition => {
+    const tool = byName.get(name);
+    if (!tool) {
+      throw new Error(`Built-in tool '${name}' was not available for Meron override.`);
+    }
+    return tool;
+  };
+
+  return {
+    read: resolve("read"),
+    grep: resolve("grep"),
+    find: resolve("find"),
+    ls: resolve("ls"),
+    bash: resolve("bash"),
+    edit: resolve("edit"),
+    write: resolve("write"),
+  };
+}
+
+async function executeBuiltInTool(
+  tool: RuntimeToolDefinition,
+  toolCallId: string,
+  params: unknown,
+  signal: unknown,
+  onUpdate: unknown,
+  ctx: unknown,
+): Promise<unknown> {
+  const execute = tool.execute;
+  if (typeof execute !== "function") {
+    throw new Error("Wrapped built-in tool is missing execute().");
+  }
+  return await Promise.resolve(execute.call(tool, toolCallId, params, signal, onUpdate, ctx));
+}
+
+function formatSize(sizeBytes: number): string {
+  if (!Number.isFinite(sizeBytes) || sizeBytes < 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = sizeBytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  const precision = unitIndex === 0 || value >= 10 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
 }
 
 function captureExistingWriteContent(
@@ -950,7 +973,7 @@ export function registerToolDisplayOverrides(
   getConfig: ConfigGetter,
 ): void {
   patchToolContainerStyle();
-  const bootstrapTools = getBuiltInTools(process.cwd());
+  const bootstrapTools = getBuiltInTools(pi);
   const builtInPromptMetadata = {
     read: extractPromptMetadata(bootstrapTools.read),
     grep: extractPromptMetadata(bootstrapTools.grep),
@@ -989,12 +1012,7 @@ export function registerToolDisplayOverrides(
       parameters: clonedParameters.read,
       prepareArguments: getToolPrepareArguments(bootstrapTools.read),
       async execute(toolCallId, params, signal, onUpdate, ctx) {
-        return getBuiltInTools(ctx.cwd).read.execute(
-          toolCallId,
-          params,
-          signal,
-          onUpdate,
-        );
+        return executeBuiltInTool(bootstrapTools.read, toolCallId, params, signal, onUpdate, ctx);
       },
       renderCall(args, theme, context) {
         const path = shortenPath(getToolPathArg(args));
@@ -1054,12 +1072,7 @@ export function registerToolDisplayOverrides(
     parameters: clonedParameters.grep,
     prepareArguments: getToolPrepareArguments(bootstrapTools.grep),
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return getBuiltInTools(ctx.cwd).grep.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.grep, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const scope = shortenPath(args.path || ".");
@@ -1095,12 +1108,7 @@ export function registerToolDisplayOverrides(
     parameters: clonedParameters.find,
     prepareArguments: getToolPrepareArguments(bootstrapTools.find),
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return getBuiltInTools(ctx.cwd).find.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.find, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const scope = shortenPath(args.path || ".");
@@ -1135,12 +1143,7 @@ export function registerToolDisplayOverrides(
     parameters: clonedParameters.ls,
     prepareArguments: getToolPrepareArguments(bootstrapTools.ls),
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return getBuiltInTools(ctx.cwd).ls.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.ls, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const scope = shortenPath(args.path || ".");
@@ -1176,12 +1179,7 @@ export function registerToolDisplayOverrides(
     renderShell: "default",
     prepareArguments: getToolPrepareArguments(bootstrapTools.edit),
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return getBuiltInTools(ctx.cwd).edit.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.edit, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const path = shortenPath(getToolPathArg(args));
@@ -1243,12 +1241,7 @@ export function registerToolDisplayOverrides(
         previousContent: previous.content,
       });
 
-      return getBuiltInTools(ctx.cwd).write.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.write, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const content = getToolContentArg(args);
@@ -1321,12 +1314,7 @@ export function registerToolDisplayOverrides(
     parameters: clonedParameters.bash,
     prepareArguments: getToolPrepareArguments(bootstrapTools.bash),
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return getBuiltInTools(ctx.cwd).bash.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+      return executeBuiltInTool(bootstrapTools.bash, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
       const command = getStringField(args, "command") ?? "";

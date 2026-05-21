@@ -1,5 +1,5 @@
 import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
-import { getLanguageFromPath, highlightCode, type EditToolDetails } from "@earendil-works/pi-coding-agent";
+import type { EditToolDetails } from "@earendil-works/pi-coding-agent";
 import { ANSI_SGR_PATTERN, STYLE_RESET_PARAMS, toSgrParams } from "./ansi-utils.js";
 import {
 	buildCollapsedDiffHintText,
@@ -279,22 +279,12 @@ function resolveLanguageFromPath(rawPath: string | undefined): string | undefine
 	if (!rawPath || !rawPath.trim()) {
 		return undefined;
 	}
-	const normalizedPath = rawPath.replace(/^@/, "").trim();
-	if (!normalizedPath) {
-		return undefined;
-	}
-	try {
-		return getLanguageFromPath(normalizedPath);
-	} catch {
-		return undefined;
-	}
+	const normalizedPath = rawPath.replace(/^@/, "").trim().toLowerCase();
+	const extension = normalizedPath.match(/\.([a-z0-9]+)$/)?.[1];
+	return extension || undefined;
 }
 
-function createCodeLineHighlighter(language: string | undefined): CodeLineHighlighter {
-	if (!language) {
-		return (line) => sanitizeAnsiForThemedOutput(line);
-	}
-
+function createCodeLineHighlighter(_language: string | undefined): CodeLineHighlighter {
 	const cache = new Map<string, string>();
 	return (line) => {
 		if (!line) {
@@ -304,16 +294,9 @@ function createCodeLineHighlighter(language: string | undefined): CodeLineHighli
 		if (cached !== undefined) {
 			return cached;
 		}
-		try {
-			const highlighted = highlightCode(line, language)[0] ?? line;
-			const sanitized = sanitizeAnsiForThemedOutput(highlighted);
-			cache.set(line, sanitized);
-			return sanitized;
-		} catch {
-			const sanitizedFallback = sanitizeAnsiForThemedOutput(line);
-			cache.set(line, sanitizedFallback);
-			return sanitizedFallback;
-		}
+		const sanitized = sanitizeAnsiForThemedOutput(line);
+		cache.set(line, sanitized);
+		return sanitized;
 	};
 }
 
