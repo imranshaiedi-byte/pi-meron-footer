@@ -973,7 +973,16 @@ export function registerToolDisplayOverrides(
   getConfig: ConfigGetter,
 ): void {
   patchToolContainerStyle();
+  const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
+  let registeredBuiltIns = false;
+
+  const registerBuiltInToolOverrides = (): void => {
+    if (registeredBuiltIns) {
+      return;
+    }
+
   const bootstrapTools = getBuiltInTools(pi);
+  registeredBuiltIns = true;
   const builtInPromptMetadata = {
     read: extractPromptMetadata(bootstrapTools.read),
     grep: extractPromptMetadata(bootstrapTools.grep),
@@ -992,8 +1001,6 @@ export function registerToolDisplayOverrides(
     edit: cloneToolParameters(bootstrapTools.edit.parameters),
     write: cloneToolParameters(bootstrapTools.write.parameters),
   };
-  const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
-
   const registerIfOwned = (
     toolName: BuiltInToolOverrideName,
     register: () => void,
@@ -1388,6 +1395,8 @@ export function registerToolDisplayOverrides(
     });
   });
 
+  };
+
   const wrappedMcpToolNames = new Set<string>();
 
   const registerMcpToolOverrides = (): void => {
@@ -1466,10 +1475,12 @@ export function registerToolDisplayOverrides(
 
   pi.on("session_start", async () => {
     clearWriteExecutionMeta(writeExecutionMetaByToolCallId);
+    registerBuiltInToolOverrides();
     registerMcpToolOverrides();
   });
   pi.on("before_agent_start", async () => {
     clearWriteExecutionMeta(writeExecutionMetaByToolCallId);
+    registerBuiltInToolOverrides();
     registerMcpToolOverrides();
   });
 }
