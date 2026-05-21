@@ -327,6 +327,43 @@ function compactLeadingEnvAssignments(command: string): {
   };
 }
 
+function splitCommandChain(command: string): string[] {
+  return command
+    .split(/\s+(?:&&|\|\||;)\s+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+}
+
+function commandFlowLabel(segment: string): string {
+  const compacted = compactLeadingEnvAssignments(segment).displayCommand;
+  const tokens = compacted.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+  const first = tokens[0] ?? "command";
+  const second = tokens[1];
+
+  if (first === "git" && second) {
+    return `git ${second}`;
+  }
+  if (["npm", "pnpm", "yarn", "bun"].includes(first) && second) {
+    return `${first} ${second}`;
+  }
+  if (first === "node" && second === "-e") {
+    return "node -e";
+  }
+
+  return first;
+}
+
+function formatCommandFlowSummary(command: string, width: number): string | undefined {
+  const segments = splitCommandChain(command);
+  if (segments.length <= 1) {
+    return undefined;
+  }
+
+  const labels = segments.map(commandFlowLabel);
+  const flow = labels.join(" → ");
+  return visibleWidth(flow) > width ? truncateMiddleToWidth(flow, width) : flow;
+}
+
 function formatCollapsedBashCommand(
   command: string,
   theme: RenderTheme,
@@ -342,13 +379,19 @@ function formatCollapsedBashCommand(
     .filter((line) => line.length > 0);
   const flattened = rawCommand.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
   const compactedCommand = compactLeadingEnvAssignments(flattened);
-  const display = truncateMiddleToWidth(compactedCommand.displayCommand, 88);
+  const chainSegments = splitCommandChain(flattened);
+  const flowSummary = visibleWidth(compactedCommand.displayCommand) > 88
+    ? formatCommandFlowSummary(flattened, 88)
+    : undefined;
+  const display = flowSummary ?? truncateMiddleToWidth(compactedCommand.displayCommand, 88);
   const hints: string[] = [];
 
   if (commandLines.length > 1) {
     hints.push(`${commandLines.length} lines`);
   }
-  if (visibleWidth(compactedCommand.displayCommand) > visibleWidth(display)) {
+  if (flowSummary && chainSegments.length > 1) {
+    hints.push(`${chainSegments.length} commands`);
+  } else if (visibleWidth(compactedCommand.displayCommand) > visibleWidth(display)) {
     hints.push("truncated");
   }
 
