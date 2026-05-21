@@ -23,26 +23,13 @@ Single-row padded footer (3-space left/right padding):
 - Press `Ctrl+O` to expand and show all output lines.
 - Long or multiline bash commands are collapsed too, with `Ctrl+O` showing the full command.
 
-Collapsed summary layouts:
+Collapsed result summary:
 
 ```text
-# Option A: summary row
 ────────────────────────────────────────
 ● Bash npm test
 └─ 42 lines returned • Ctrl+O to expand
 ────────────────────────────────────────
-
-# Option B: inline summary inside the existing border
-────────────────────────────────────────
-● Bash npm test → 42 lines returned • Ctrl+O to expand
-────────────────────────────────────────
-```
-
-Switch layouts with:
-
-```bash
-/meron-tools a   # Option A: summary row
-/meron-tools b   # Option B: inline summary
 ```
 
 ## Install

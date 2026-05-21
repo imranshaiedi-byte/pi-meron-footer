@@ -8,5 +8,9 @@
     "themes": ["./themes"]
   },
   "keywords": ["pi", "pi-agent", "pi-extension", "pi-package", "footer", "status-bar", "tool-rendering"],
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.75.4",
+    "@earendil-works/pi-tui": "^0.75.4"
+  },
   "files": ["index.ts", "src", "themes"]
 }

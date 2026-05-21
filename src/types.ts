@@ -1,10 +1,8 @@
 export const DIFF_VIEW_MODES = ["auto", "split", "unified"] as const;
 export const DIFF_INDICATOR_MODES = ["bars", "classic", "none"] as const;
-export const COLLAPSED_TOOL_LAYOUTS = ["summary-row", "inline-summary"] as const;
 
 export type DiffViewMode = (typeof DIFF_VIEW_MODES)[number];
 export type DiffIndicatorMode = (typeof DIFF_INDICATOR_MODES)[number];
-export type CollapsedToolLayout = (typeof COLLAPSED_TOOL_LAYOUTS)[number];
 
 export const BUILT_IN_TOOL_OVERRIDE_NAMES = [
 	"read",
@@ -37,7 +35,6 @@ export interface ToolDisplayConfig {
 	diffWordWrap: boolean;
 	showTruncationHints: boolean;
 	showRtkCompactionHints: boolean;
-	collapsedToolLayout: CollapsedToolLayout;
 }
 
 export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
@@ -57,5 +54,4 @@ export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
 	diffWordWrap: true,
 	showTruncationHints: false,
 	showRtkCompactionHints: false,
-	collapsedToolLayout: "summary-row",
 };
