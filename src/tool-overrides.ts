@@ -120,6 +120,7 @@ export const WRITE_EXECUTION_META_LIMIT = 100;
 const WRITE_EXECUTION_META_STATE_KEY = "__piToolDisplayWriteExecutionMeta";
 const EDIT_PENDING_PREVIEW_STATE_KEY = "__piToolDisplayEditPendingPreview";
 const WRITE_PENDING_PREVIEW_STATE_KEY = "__piToolDisplayWritePendingPreview";
+const COLLAPSED_SUMMARY_STATE_KEY = "__piMeronFooterCollapsedSummary";
 
 function registerRuntimeTool(pi: ExtensionAPI, tool: RuntimeToolDefinition): void {
   pi.registerTool(tool as unknown as ToolDefinition);
@@ -301,6 +302,50 @@ function toStateCarrier(value: unknown): Record<string, unknown> | undefined {
   }
 
   return value as Record<string, unknown>;
+}
+
+function setCollapsedSummary(
+  context: ToolRenderContextLike | undefined,
+  summary: string | undefined,
+): void {
+  const state = toStateCarrier(context?.state);
+  if (!state) return;
+  if (summary && summary.trim()) {
+    state[COLLAPSED_SUMMARY_STATE_KEY] = summary;
+  } else {
+    delete state[COLLAPSED_SUMMARY_STATE_KEY];
+  }
+}
+
+function getCollapsedSummary(context: ToolRenderContextLike | undefined): string | undefined {
+  const raw = toStateCarrier(context?.state)?.[COLLAPSED_SUMMARY_STATE_KEY];
+  return typeof raw === "string" && raw.trim() ? raw : undefined;
+}
+
+function renderCollapsedSummary(
+  context: ToolRenderContextLike | undefined,
+  config: ToolDisplayConfig,
+  summary: string,
+  theme: RenderTheme,
+): Text {
+  setCollapsedSummary(context, summary);
+  if (config.collapsedToolLayout === "inline-summary") {
+    return styledText(context, "");
+  }
+  return branchText(context, summary);
+}
+
+function withInlineCollapsedSummary(
+  summary: string,
+  context: ToolRenderContextLike | undefined,
+  config: ToolDisplayConfig,
+  theme: RenderTheme,
+): string {
+  const collapsedSummary = getCollapsedSummary(context);
+  if (config.collapsedToolLayout !== "inline-summary" || context?.isPartial || !collapsedSummary) {
+    return summary;
+  }
+  return `${summary}${theme.fg("muted", " → ")}${collapsedSummary}`;
 }
 
 export function recordWriteExecutionMeta(
@@ -679,11 +724,24 @@ function renderBashLivePreview(
   details: BashToolDetails | undefined,
   context?: ToolRenderContextLike,
 ): Text {
-  if (!options.expanded) {
+  if (options.isPartial && !options.expanded) {
     return styledText(context, "");
   }
 
   const lines = prepareOutputLines(rawOutput, options);
+  if (!options.expanded) {
+    let summary = lines.length === 0
+      ? formatBashNoOutputLine(getStringField(context?.args, "command"), theme)
+      : formatBashSummary(lines, details, theme, config.showTruncationHints);
+    if (config.showTruncationHints) {
+      summary += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
+    }
+    if (lines.length > 0) {
+      summary += formatExpandHint(theme);
+    }
+    return renderCollapsedSummary(context, config, summary, theme);
+  }
+
   let preview = buildPreviewText(lines, lines.length, theme, true);
   if (config.showTruncationHints) {
     preview += formatBashTruncationHints(details, theme);
@@ -703,7 +761,15 @@ function renderBashErrorResult(
   let text = theme.fg("error", "Command failed");
 
   if (!options.expanded) {
-    return styledText(context, "");
+    let summary = theme.fg("error", "failed");
+    if (lines.length > 0) {
+      summary += theme.fg("muted", ` • ${lines.length} ${pluralize(lines.length, "line")} returned`);
+      summary += formatExpandHint(theme);
+    }
+    if (config.showTruncationHints) {
+      summary += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
+    }
+    return renderCollapsedSummary(context, config, summary, theme);
   }
 
   if (lines.length > 0) {
@@ -732,11 +798,25 @@ function renderSearchResult(
   pluralLabel?: string,
   context?: ToolRenderContextLike,
 ): Text {
-  if (options.isPartial || !options.expanded) {
+  if (options.isPartial) {
     return styledText(context, "");
   }
 
   const lines = prepareOutputLines(extractTextOutput(result), options);
+
+  if (!options.expanded) {
+    let summary = formatSearchSummary(
+      lines,
+      unitLabel,
+      details,
+      theme,
+      config.showTruncationHints,
+      pluralLabel,
+    );
+    summary += formatExpandHint(theme);
+    summary += formatRtkSummarySuffix(details, config, theme);
+    return renderCollapsedSummary(context, config, summary, theme);
+  }
 
   let preview = buildPreviewText(lines, lines.length, theme, true);
   if (config.showTruncationHints && details?.truncation?.truncated) {
@@ -927,17 +1007,14 @@ export function registerToolDisplayOverrides(
           if (limit !== undefined) parts.push(`limit=${limit}`);
           suffix = ` ${theme.fg("muted", `(${parts.join(", ")})`)}`;
         }
-        return styledText(context, toolHeader("Read", `${path || "..."}${suffix}`, theme, context));
+        const summary = withInlineCollapsedSummary(`${path || "..."}${suffix}`, context, getConfig(), theme);
+        return styledText(context, toolHeader("Read", summary, theme, context));
       },
       renderResult(result, options, theme, context) {
         if (options.isPartial) {
           return styledText(context, "");
         }
         setToolResultStatus(context, context?.isError === true);
-        if (!options.expanded) {
-          return styledText(context, "");
-        }
-
         const config = getConfig();
         const details = result.details as ReadToolDetails | undefined;
         const rawOutput = extractTextOutput(result);
@@ -955,7 +1032,7 @@ export function registerToolDisplayOverrides(
           );
           summary += formatExpandHint(theme);
           summary += formatRtkSummarySuffix(result.details, config, theme);
-          return branchText(context, summary);
+          return renderCollapsedSummary(context, config, summary, theme);
         }
 
         let preview = buildPreviewText(lines, lines.length, theme, true);
@@ -988,7 +1065,8 @@ export function registerToolDisplayOverrides(
       const scope = shortenPath(args.path || ".");
       const globSuffix = args.glob ? ` (${args.glob})` : "";
       const limitSuffix = args.limit !== undefined ? ` limit ${args.limit}` : "";
-      return styledText(context, toolHeader("Grep", `"${args.pattern}" in ${scope}${globSuffix}${limitSuffix}`, theme, context));
+      const summary = withInlineCollapsedSummary(`"${args.pattern}" in ${scope}${globSuffix}${limitSuffix}`, context, getConfig(), theme);
+      return styledText(context, toolHeader("Grep", summary, theme, context));
     },
     renderResult(result, options, theme, context) {
       if (!options.isPartial) setToolResultStatus(context, context?.isError === true);
@@ -1027,7 +1105,8 @@ export function registerToolDisplayOverrides(
     renderCall(args, theme, context) {
       const scope = shortenPath(args.path || ".");
       const limitSuffix = args.limit !== undefined ? ` (limit ${args.limit})` : "";
-      return styledText(context, toolHeader("Find", `"${args.pattern}" in ${scope}${limitSuffix}`, theme, context));
+      const summary = withInlineCollapsedSummary(`"${args.pattern}" in ${scope}${limitSuffix}`, context, getConfig(), theme);
+      return styledText(context, toolHeader("Find", summary, theme, context));
     },
     renderResult(result, options, theme, context) {
       if (!options.isPartial) setToolResultStatus(context, context?.isError === true);
@@ -1066,7 +1145,8 @@ export function registerToolDisplayOverrides(
     renderCall(args, theme, context) {
       const scope = shortenPath(args.path || ".");
       const limitSuffix = args.limit !== undefined ? ` (limit ${args.limit})` : "";
-      return styledText(context, toolHeader("List", `${scope}${limitSuffix}`, theme, context));
+      const summary = withInlineCollapsedSummary(`${scope}${limitSuffix}`, context, getConfig(), theme);
+      return styledText(context, toolHeader("List", summary, theme, context));
     },
     renderResult(result, options, theme, context) {
       if (!options.isPartial) setToolResultStatus(context, context?.isError === true);
@@ -1268,7 +1348,8 @@ export function registerToolDisplayOverrides(
         );
         return styledText(context, `${header}\n${branchLines.join("\n")}`);
       }
-      return styledText(context, toolHeader("Bash", flattened.slice(0, 72) || "...", theme, context));
+      const summary = withInlineCollapsedSummary(flattened.slice(0, 72) || "...", context, getConfig(), theme);
+      return styledText(context, toolHeader("Bash", summary, theme, context));
     },
     renderResult(result, options, theme, context) {
       const config = getConfig();
@@ -1284,12 +1365,21 @@ export function registerToolDisplayOverrides(
         return renderBashErrorResult(rawOutput, options, config, theme, details, context);
       }
 
+      const lines = prepareOutputLines(rawOutput, options);
+
       if (!options.expanded) {
         setToolResultStatus(context, false);
-        return styledText(context, "");
+        let summary = lines.length === 0
+          ? formatBashNoOutputLine(getStringField(context?.args, "command"), theme)
+          : formatBashSummary(lines, details, theme, config.showTruncationHints);
+        if (config.showTruncationHints) {
+          summary += formatBashTruncationHints(details, theme).replace(/^\n/, " • ");
+        }
+        if (lines.length > 0) {
+          summary += formatExpandHint(theme);
+        }
+        return renderCollapsedSummary(context, config, summary, theme);
       }
-
-      const lines = prepareOutputLines(rawOutput, options);
 
       if (lines.length === 0) {
         let text = formatBashNoOutputLine(getStringField(context?.args, "command"), theme);

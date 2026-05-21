@@ -16,14 +16,34 @@ Single-row padded footer (3-space left/right padding):
 - **Right:** provider/model · thinking level · context usage %
 - Color-coded context (warning >70%, error >90%)
 
-### Fixed tool display
+### Tool display
 
 - `edit` and `write`: diff rendering.
 - All other tool results: one-line summary while collapsed.
 - Press `Ctrl+O` to expand and show all output lines.
 - Long or multiline bash commands are collapsed too, with `Ctrl+O` showing the full command.
 
-No `/tool-display` command, no settings modal, no config file. Behavior is intentionally fixed.
+Collapsed summary layouts:
+
+```text
+# Option A: summary row
+────────────────────────────────────────
+● Bash npm test
+└─ 42 lines returned • Ctrl+O to expand
+────────────────────────────────────────
+
+# Option B: inline summary inside the existing border
+────────────────────────────────────────
+● Bash npm test → 42 lines returned • Ctrl+O to expand
+────────────────────────────────────────
+```
+
+Switch layouts with:
+
+```bash
+/meron-tools a   # Option A: summary row
+/meron-tools b   # Option B: inline summary
+```
 
 ## Install
 
