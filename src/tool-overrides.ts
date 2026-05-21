@@ -569,7 +569,8 @@ function formatCollapsedBashCommand(
   const multilineSummary = commandLines.length > 1
     ? formatMultilineCommandFlowSummary(commandLines, 88)
     : undefined;
-  const flowSummary = !multilineSummary && visibleWidth(compactedCommand.displayCommand) > 88
+  const isChained = chainSegments.length > 1;
+  const flowSummary = !multilineSummary && (isChained || visibleWidth(compactedCommand.displayCommand) > 88)
     ? formatCommandFlowSummary(flattened, 88)
     : undefined;
   const display = multilineSummary ?? flowSummary ?? truncateMiddleToWidth(compactedCommand.displayCommand, 88);
