@@ -300,6 +300,33 @@ function truncateMiddleToWidth(text: string, width: number): string {
   return `${head}…${tail}`;
 }
 
+function compactLeadingEnvAssignments(command: string): {
+  displayCommand: string;
+  compacted: boolean;
+} {
+  const envNames: string[] = [];
+  let remaining = command;
+
+  while (true) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)\s+/.exec(remaining);
+    if (!match) {
+      break;
+    }
+
+    envNames.push(match[1] ?? "ENV");
+    remaining = remaining.slice(match[0].length).trimStart();
+  }
+
+  if (envNames.length === 0 || !remaining) {
+    return { displayCommand: command, compacted: false };
+  }
+
+  return {
+    displayCommand: `${envNames.map((name) => `${name}=…`).join(" ")} ${remaining}`,
+    compacted: true,
+  };
+}
+
 function formatCollapsedBashCommand(
   command: string,
   theme: RenderTheme,
@@ -314,13 +341,17 @@ function formatCollapsedBashCommand(
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   const flattened = rawCommand.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
-  const display = truncateMiddleToWidth(flattened, 88);
+  const compactedCommand = compactLeadingEnvAssignments(flattened);
+  const display = truncateMiddleToWidth(compactedCommand.displayCommand, 88);
   const hints: string[] = [];
 
   if (commandLines.length > 1) {
     hints.push(`${commandLines.length} lines`);
   }
-  if (visibleWidth(flattened) > visibleWidth(display)) {
+  if (compactedCommand.compacted) {
+    hints.push("env compacted");
+  }
+  if (visibleWidth(compactedCommand.displayCommand) > visibleWidth(display)) {
     hints.push("truncated");
   }
 
