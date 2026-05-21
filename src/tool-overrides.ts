@@ -338,19 +338,62 @@ function commandFlowLabel(segment: string): string {
   const compacted = compactLeadingEnvAssignments(segment).displayCommand;
   const tokens = compacted.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
   const first = tokens[0] ?? "command";
-  const second = tokens[1];
+  const hasEnvPrefix = first.endsWith("=…");
+  const command = hasEnvPrefix ? tokens[1] ?? first : first;
+  const second = hasEnvPrefix ? tokens[2] : tokens[1];
+  const prefix = hasEnvPrefix ? `${first} ` : "";
 
-  if (first === "git" && second) {
-    return `git ${second}`;
+  if (command === "git" && second) {
+    return `${prefix}git ${second}`;
   }
-  if (["npm", "pnpm", "yarn", "bun"].includes(first) && second) {
-    return `${first} ${second}`;
+  if (["npm", "pnpm", "yarn", "bun"].includes(command) && second) {
+    return `${prefix}${command} ${second}`;
   }
-  if (first === "node" && second === "-e") {
-    return "node -e";
+  if (command === "node" && second === "-e") {
+    return `${prefix}node -e`;
+  }
+  if (command === "node") {
+    return `${prefix}node`;
   }
 
-  return first;
+  return `${prefix}${command}`;
+}
+
+function getHeredocMarker(line: string): string | undefined {
+  const match = /<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/.exec(line);
+  return match?.[1];
+}
+
+function formatMultilineCommandFlowSummary(lines: string[], width: number): string | undefined {
+  const labels: string[] = [];
+  let heredocMarker: string | undefined;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    if (heredocMarker) {
+      if (line === heredocMarker) {
+        heredocMarker = undefined;
+      }
+      continue;
+    }
+
+    for (const segment of splitCommandChain(line)) {
+      labels.push(commandFlowLabel(segment));
+    }
+
+    heredocMarker = getHeredocMarker(line);
+  }
+
+  if (labels.length === 0) {
+    return undefined;
+  }
+
+  const flow = labels.join(" → ");
+  return visibleWidth(flow) > width ? truncateMiddleToWidth(flow, width) : flow;
 }
 
 function formatCommandFlowSummary(command: string, width: number): string | undefined {
@@ -380,16 +423,24 @@ function formatCollapsedBashCommand(
   const flattened = rawCommand.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
   const compactedCommand = compactLeadingEnvAssignments(flattened);
   const chainSegments = splitCommandChain(flattened);
-  const flowSummary = visibleWidth(compactedCommand.displayCommand) > 88
+  const multilineSummary = commandLines.length > 1
+    ? formatMultilineCommandFlowSummary(commandLines, 88)
+    : undefined;
+  const flowSummary = !multilineSummary && visibleWidth(compactedCommand.displayCommand) > 88
     ? formatCommandFlowSummary(flattened, 88)
     : undefined;
-  const display = flowSummary ?? truncateMiddleToWidth(compactedCommand.displayCommand, 88);
+  const display = multilineSummary ?? flowSummary ?? truncateMiddleToWidth(compactedCommand.displayCommand, 88);
   const hints: string[] = [];
 
   if (commandLines.length > 1) {
     hints.push(`${commandLines.length} lines`);
   }
-  if (flowSummary && chainSegments.length > 1) {
+  if (multilineSummary) {
+    const commandCount = multilineSummary.split(" → ").length;
+    if (commandCount > 1) {
+      hints.push(`${commandCount} commands`);
+    }
+  } else if (flowSummary && chainSegments.length > 1) {
     hints.push(`${chainSegments.length} commands`);
   } else if (visibleWidth(compactedCommand.displayCommand) > visibleWidth(display)) {
     hints.push("truncated");
