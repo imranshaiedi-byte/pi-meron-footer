@@ -273,7 +273,7 @@ function formatBashNoOutputLine(
 }
 
 function truncateEndToWidth(text: string, width: number): string {
-  return visibleWidth(text) <= width ? text : truncateToWidth(text, width, "...");
+  return visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
 }
 
 function formatCollapsedBashCommand(
