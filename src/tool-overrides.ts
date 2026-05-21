@@ -398,6 +398,78 @@ function formatDatabricksCommandLabel(prefix: string, tokens: string[]): string 
   return `${prefix}databricks ${group}`;
 }
 
+const AWS_GLOBAL_FLAGS_WITH_VALUES = new Set([
+  "--endpoint-url",
+  "--output",
+  "--query",
+  "--profile",
+  "--region",
+  "--color",
+  "--ca-bundle",
+  "--cli-read-timeout",
+  "--cli-connect-timeout",
+  "--cli-binary-format",
+  "--cli-error-format",
+]);
+
+const AWS_GLOBAL_BOOLEAN_FLAGS = new Set([
+  "--debug",
+  "--no-verify-ssl",
+  "--no-paginate",
+  "--version",
+  "--no-sign-request",
+  "--no-cli-pager",
+  "--cli-auto-prompt",
+  "--no-cli-auto-prompt",
+  "-h",
+  "--help",
+]);
+
+function stripAwsGlobalFlags(tokens: string[]): string[] {
+  const cleaned: string[] = [];
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (!token) {
+      continue;
+    }
+
+    if (AWS_GLOBAL_FLAGS_WITH_VALUES.has(token)) {
+      index++;
+      continue;
+    }
+    if ([...AWS_GLOBAL_FLAGS_WITH_VALUES].some((flag) => token.startsWith(`${flag}=`))) {
+      continue;
+    }
+    if (AWS_GLOBAL_BOOLEAN_FLAGS.has(token)) {
+      continue;
+    }
+
+    cleaned.push(token);
+  }
+  return cleaned;
+}
+
+function formatAwsCommandLabel(prefix: string, tokens: string[]): string {
+  const args = stripAwsGlobalFlags(tokens.slice(1));
+  const service = args[0];
+  const operation = args[1];
+  const waitTarget = args[2];
+
+  if (!service) {
+    return `${prefix}aws`;
+  }
+
+  if (operation === "wait" && waitTarget) {
+    return `${prefix}aws ${service} wait ${waitTarget}`;
+  }
+
+  if (operation) {
+    return `${prefix}aws ${service} ${operation}`;
+  }
+
+  return `${prefix}aws ${service}`;
+}
+
 function commandFlowLabel(segment: string): string {
   const compacted = compactLeadingEnvAssignments(segment).displayCommand;
   const tokens = compacted.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
@@ -410,6 +482,9 @@ function commandFlowLabel(segment: string): string {
 
   if (command === "databricks") {
     return formatDatabricksCommandLabel(prefix, commandTokens);
+  }
+  if (command === "aws") {
+    return formatAwsCommandLabel(prefix, commandTokens);
   }
   if (command === "git" && second) {
     return `${prefix}git ${second}`;
