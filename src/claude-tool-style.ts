@@ -7,9 +7,9 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 const WRAP_MARK = "\uE000";
 const PATCH_FLAG = Symbol.for("pi-meron-footer:claude-tool-container-style");
 
-// Fixed, non-adaptive palette from pi-cc-tools.
-const BORDER_COLOR = "\x1b[38;5;238m";
-const TOOL_RULE = "\x1b[38;5;238m";
+// Match the plain-white-v1 theme text grey (#d0d0d0).
+const BORDER_COLOR = "\x1b[38;2;208;208;208m";
+const TOOL_RULE = "\x1b[38;2;208;208;208m";
 
 export interface RenderThemeLike {
   fg(color: string, text: string): string;
