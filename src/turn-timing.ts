@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
 
 let turnStartTime: number | undefined;
 
@@ -11,11 +10,6 @@ function formatDuration(ms: number): string {
 }
 
 export function registerTurnTiming(pi: ExtensionAPI): void {
-  pi.registerMessageRenderer("meron-turn-timing", (message, _options, theme) => {
-    const content = typeof message.content === "string" ? message.content : "";
-    return new Text(theme.fg("dim", content), 0, 0);
-  });
-
   pi.on("agent_start", async () => {
     turnStartTime = Date.now();
   });
@@ -25,10 +19,10 @@ export function registerTurnTiming(pi: ExtensionAPI): void {
     const duration = formatDuration(Date.now() - turnStartTime);
     turnStartTime = undefined;
 
-    pi.sendMessage({
-      customType: "meron-turn-timing",
-      content: `──── ${duration} ────`,
-      display: true,
-    }, { deliverAs: "followUp", triggerTurn: false });
+    // Use a widget instead of sendMessage to avoid triggering agent loops
+    const theme = ctx.ui?.theme as any;
+    if (theme) {
+      ctx.ui.setWidget("meron-turn-timing", [theme.fg("dim", `──── ${duration} ────`)], { placement: "belowEditor" });
+    }
   });
 }
