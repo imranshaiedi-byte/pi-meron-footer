@@ -53,15 +53,34 @@ function extractUsage(message: unknown): { tokensIn?: number; tokensOut?: number
   return { tokensIn, tokensOut };
 }
 
+function captureModel(ctx: ExtensionContext): void {
+  const m = (ctx as any).model;
+  if (!m) return;
+  const id = typeof m.id === "string" ? m.id : typeof m.name === "string" ? m.name : undefined;
+  const provider = typeof m.provider === "string" ? m.provider : undefined;
+  if (id) state.currentTurnModel = id;
+  if (provider) state.currentTurnProvider = provider;
+}
+
 export function registerSessionTracker(pi: ExtensionAPI): void {
   pi.on("session_start", async () => {
     state = createFreshState();
   });
 
+  pi.on("model_select", async (event) => {
+    if (event.model) {
+      state.currentTurnModel = event.model.id ?? event.model.name;
+      state.currentTurnProvider = event.model.provider;
+    }
+  });
+
+  pi.on("before_agent_start", async (_event, ctx) => {
+    captureModel(ctx);
+  });
+
   pi.on("turn_start", async (event, ctx) => {
     state.currentTurnStart = event.timestamp ?? Date.now();
-    state.currentTurnModel = ctx.model?.id;
-    state.currentTurnProvider = ctx.model?.provider;
+    captureModel(ctx);
     state.currentTurnThinking = pi.getThinkingLevel();
     state.toolsUsed = [];
     state.errors = [];

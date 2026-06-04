@@ -160,9 +160,13 @@ export function injectTurnSeparator(pi: ExtensionAPI, ctx: ExtensionContext): vo
   const lastTurn = getLastTurn();
   const turnIndex = getTurnCount();
 
-  const shortModel = lastTurn
-    ? (lastTurn.modelId.split("/").pop() ?? lastTurn.modelId)
-    : (ctx.model?.id?.split("/").pop() ?? "unknown");
+  // Try module state first, then ctx.model directly
+  let modelId = lastTurn?.modelId;
+  if (!modelId || modelId === "unknown") {
+    const m = (ctx as any).model;
+    modelId = m?.id ?? m?.name ?? "unknown";
+  }
+  const shortModel = modelId.split("/").pop() ?? modelId;
 
   const duration = lastTurn ? formatDuration(lastTurn.durationMs) : "";
   const tokens = lastTurn && (lastTurn.tokensIn || lastTurn.tokensOut)
