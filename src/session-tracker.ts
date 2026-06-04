@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { appendFileSync } from "node:fs";
 
 interface TurnInfo {
   index: number;
@@ -57,9 +58,10 @@ const DEBUG_LOG = "C:/Users/imran/meron-debug.log";
 
 function log(msg: string): void {
   try {
-    const fs = require("node:fs");
-    fs.appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`);
-  } catch {}
+    appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`);
+  } catch (e: any) {
+    try { appendFileSync(DEBUG_LOG, `LOG-ERROR ${e.message}\n`); } catch {}
+  }
 }
 
 function captureModel(ctx: ExtensionContext): void {
