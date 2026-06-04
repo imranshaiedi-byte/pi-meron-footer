@@ -272,8 +272,349 @@ function formatBashNoOutputLine(
   return theme.fg("muted", "(no output)");
 }
 
+const BASH_COLLAPSED_TOTAL_WIDTH = 120;
+const BASH_COLLAPSED_MIN_ACTION_WIDTH = 40;
+const BASH_CONTEXT_PATH_WIDTH = 36;
+
+interface BashCommandSummary {
+  action: string;
+  context: string[];
+  summarized: boolean;
+}
+
 function truncateEndToWidth(text: string, width: number): string {
   return visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
+}
+
+function flattenBashCommand(command: string): string {
+  return command.replace(/\\\s*\r?\n/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function unquoteShellToken(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return trimmed.slice(1, -1);
+    }
+  }
+  return trimmed;
+}
+
+function tokenizeShellWords(segment: string): string[] {
+  const tokens: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | "`" | undefined;
+  let escaped = false;
+
+  for (const char of segment) {
+    if (escaped) {
+      token += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      token += char;
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      token += char;
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      token += char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (token) {
+        tokens.push(token);
+        token = "";
+      }
+      continue;
+    }
+
+    token += char;
+  }
+
+  if (token) {
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function splitShellSegments(command: string): string[] {
+  const normalized = command.replace(/\\\s*\r?\n/g, " ");
+  const segments: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | "`" | undefined;
+  let escaped = false;
+
+  const flush = () => {
+    const segment = current.trim();
+    if (segment && !segment.startsWith("#")) {
+      segments.push(segment);
+    }
+    current = "";
+  };
+
+  for (let index = 0; index < normalized.length; index++) {
+    const char = normalized[index] ?? "";
+    const next = normalized[index + 1] ?? "";
+
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      current += char;
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === "&" && next === "&") {
+      flush();
+      index++;
+      continue;
+    }
+
+    if (char === ";" || char === "\n") {
+      flush();
+      continue;
+    }
+
+    current += char;
+  }
+
+  flush();
+  return segments;
+}
+
+function isEnvAssignmentToken(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
+}
+
+function envNameFromAssignment(token: string): string | undefined {
+  const match = token.match(/^([A-Za-z_][A-Za-z0-9_]*)=/);
+  return match?.[1];
+}
+
+function formatEnvNames(names: string[]): string | undefined {
+  const unique = [...new Set(names)].filter(Boolean);
+  if (unique.length === 0) {
+    return undefined;
+  }
+
+  const visible = unique.slice(0, 3).join(",");
+  const hidden = unique.length - 3;
+  return hidden > 0 ? `${visible},+${hidden}` : visible;
+}
+
+function shortenShellPath(inputPath: string): string {
+  const expanded = shortenPath(unquoteShellToken(inputPath));
+  if (visibleWidth(expanded) <= BASH_CONTEXT_PATH_WIDTH) {
+    return expanded;
+  }
+
+  const normalized = expanded.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter((part) => part.length > 0);
+  for (let index = Math.max(0, parts.length - 1); index >= 0; index--) {
+    const candidate = `…/${parts.slice(index).join("/")}`;
+    if (visibleWidth(candidate) <= BASH_CONTEXT_PATH_WIDTH) {
+      return candidate;
+    }
+  }
+
+  return truncateEndToWidth(expanded, BASH_CONTEXT_PATH_WIDTH);
+}
+
+function parseDirectoryChange(segment: string): string | undefined {
+  const tokens = tokenizeShellWords(segment);
+  const command = tokens[0];
+  if (command !== "cd" && command !== "pushd") {
+    return undefined;
+  }
+
+  const pathToken = tokens.find((token, index) => index > 0 && token !== "--");
+  return pathToken ? shortenShellPath(pathToken) : undefined;
+}
+
+function stripLeadingEnvAssignments(segment: string): { command: string; envNames: string[] } {
+  const tokens = tokenizeShellWords(segment);
+  const envNames: string[] = [];
+  let index = 0;
+
+  while (index < tokens.length && isEnvAssignmentToken(tokens[index] ?? "")) {
+    const name = envNameFromAssignment(tokens[index] ?? "");
+    if (name) {
+      envNames.push(name);
+    }
+    index++;
+  }
+
+  if (tokens[index] === "env") {
+    const envCommandStart = index;
+    index++;
+    while (index < tokens.length && isEnvAssignmentToken(tokens[index] ?? "")) {
+      const name = envNameFromAssignment(tokens[index] ?? "");
+      if (name) {
+        envNames.push(name);
+      }
+      index++;
+    }
+    if (index === tokens.length) {
+      index = envCommandStart;
+    }
+  }
+
+  return {
+    command: tokens.slice(index).join(" ").trim(),
+    envNames,
+  };
+}
+
+function classifySetupSegment(segment: string): "directory" | "env" | "other" | undefined {
+  const tokens = tokenizeShellWords(segment);
+  const command = tokens[0];
+  if (!command) {
+    return undefined;
+  }
+
+  if (command === "cd" || command === "pushd" || command === "popd") {
+    return "directory";
+  }
+  if (command === "export" || command === "unset" || tokens.every(isEnvAssignmentToken)) {
+    return "env";
+  }
+  if (command === "source" || command === "." || command === "set" || command === "shopt" || command === "umask" || command === "ulimit" || command === "alias") {
+    return "other";
+  }
+
+  return undefined;
+}
+
+function collectExportedEnvNames(segment: string): string[] {
+  const tokens = tokenizeShellWords(segment);
+  if (tokens[0] !== "export" && tokens[0] !== "unset") {
+    return [];
+  }
+
+  return tokens
+    .slice(1)
+    .map((token) => envNameFromAssignment(token) ?? token.replace(/^-+/, ""))
+    .filter((token) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(token));
+}
+
+function shouldUseRawBashDisplay(command: string): boolean {
+  if (/<<-?\s*['"]?\w+/.test(command)) {
+    return true;
+  }
+
+  const controlCommands = new Set(["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "function"]);
+  return splitShellSegments(command).some((segment) => {
+    const first = tokenizeShellWords(segment)[0];
+    return first ? controlCommands.has(first) : false;
+  });
+}
+
+function summarizeBashCommand(command: string): BashCommandSummary {
+  const rawCommand = command.trim();
+  const flattened = flattenBashCommand(rawCommand);
+  const commandLines = rawCommand
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (!flattened || shouldUseRawBashDisplay(rawCommand)) {
+    const context = commandLines.length > 1 ? [`${commandLines.length} lines`] : [];
+    return { action: flattened || "...", context, summarized: context.length > 0 };
+  }
+  const segments = splitShellSegments(rawCommand);
+  const actions: string[] = [];
+  const envNames: string[] = [];
+  let directory: string | undefined;
+  let hiddenSetupCount = 0;
+
+  for (const segment of segments) {
+    const setup = classifySetupSegment(segment);
+    if (setup) {
+      if (setup === "directory") {
+        directory = parseDirectoryChange(segment) ?? directory;
+      } else if (setup === "env") {
+        envNames.push(...collectExportedEnvNames(segment));
+        envNames.push(...tokenizeShellWords(segment).map((token) => envNameFromAssignment(token)).filter((name): name is string => Boolean(name)));
+      } else {
+        hiddenSetupCount++;
+      }
+      continue;
+    }
+
+    const stripped = stripLeadingEnvAssignments(segment);
+    envNames.push(...stripped.envNames);
+    if (stripped.command) {
+      actions.push(stripped.command);
+    }
+  }
+
+  if (actions.length === 0) {
+    return { action: flattened || "...", context: [], summarized: false };
+  }
+
+  const action = actions.length === 1
+    ? actions[0] ?? flattened
+    : actions.length === 2
+      ? `${actions[0]} → ${actions[1]}`
+      : `${actions[0]} → … → ${actions[actions.length - 1]}`;
+
+  const context: string[] = [];
+  if (directory) {
+    context.push(`in ${directory}`);
+  }
+
+  const envText = formatEnvNames(envNames);
+  if (envText) {
+    context.push(`env ${envText}`);
+  }
+  if (hiddenSetupCount > 0) {
+    context.push(`${hiddenSetupCount} ${pluralize(hiddenSetupCount, "setup step")}`);
+  }
+  if (actions.length > 2) {
+    context.push(`${actions.length} actions`);
+  }
+  if (commandLines.length > 1) {
+    context.push(`${commandLines.length} lines`);
+  }
+
+  return {
+    action,
+    context,
+    summarized: action !== flattened || context.length > 0,
+  };
 }
 
 function formatCollapsedBashCommand(
@@ -285,23 +626,28 @@ function formatCollapsedBashCommand(
     return "...";
   }
 
-  const commandLines = rawCommand
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const flattened = rawCommand.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
-  const display = truncateEndToWidth(flattened, 88);
+  const summary = summarizeBashCommand(rawCommand);
+  const contextText = summary.context.length > 0 ? `  ${summary.context.join(" • ")}` : "";
+  const actionWidth = Math.max(
+    BASH_COLLAPSED_MIN_ACTION_WIDTH,
+    BASH_COLLAPSED_TOTAL_WIDTH - visibleWidth(contextText),
+  );
+  const actionDisplay = truncateEndToWidth(summary.action, actionWidth);
   const hints: string[] = [];
 
-  if (commandLines.length > 1) {
-    hints.push(`${commandLines.length} lines`);
-  } else if (visibleWidth(flattened) > visibleWidth(display)) {
+  if (visibleWidth(summary.action) > visibleWidth(actionDisplay)) {
     hints.push("truncated");
   }
 
-  return hints.length > 0
-    ? `${display}${theme.fg("muted", ` (${hints.join(" • ")} • Ctrl+O)`)}`
-    : display;
+  const wasCollapsed = summary.summarized || hints.length > 0;
+  const hintText = hints.length > 0 ? ` (${hints.join(" • ")} • Ctrl+O)` : "";
+  const mutedText = `${contextText}${hintText}`;
+
+  if (!wasCollapsed || !mutedText) {
+    return actionDisplay;
+  }
+
+  return `${actionDisplay}${theme.fg("muted", mutedText)}`;
 }
 
 function truncationHint(
