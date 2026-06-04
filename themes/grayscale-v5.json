@@ -23,8 +23,8 @@
     "thinkingText": "white",
 
     "selectedBg": "selected",
-    "userMessageBg": "",
-    "userMessageText": "#a0a0a0",
+    "userMessageBg": "surface",
+    "userMessageText": "white",
     "customMessageBg": "surface",
     "customMessageText": "white",
     "customMessageLabel": "white",
