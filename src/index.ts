@@ -23,8 +23,6 @@ const FIXED_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
 };
 
 export default function toolDisplayExtension(pi: ExtensionAPI): void {
-  // Top-level sanity check — does this extension even load?
-  try { appendFileSync("C:/Users/imran/meron-debug.log", `${new Date().toISOString()} EXTENSION LOADED\n`); } catch {}
   // Feature 2: Tool result cards (enhanced bash intent rendering)
   registerToolDisplayOverrides(pi, () => FIXED_TOOL_DISPLAY_CONFIG);
 

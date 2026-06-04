@@ -157,18 +157,22 @@ export function injectTurnSeparator(pi: ExtensionAPI, ctx: ExtensionContext): vo
   const theme = getTheme(ctx);
   if (!theme) return;
 
-  const lastTurn = getLastTurn();
   const turnIndex = getTurnCount();
+  const lastTurn = getLastTurn();
 
-  const fs = require("node:fs");
-  const debugFile = "C:/Users/imran/meron-debug.log";
-  fs.appendFileSync(debugFile, `${new Date().toISOString()} injectTurnSeparator: turnIndex=${turnIndex} turns=${JSON.stringify(getState().turns.map((t:any)=>({model:t.modelId,dur:t.durationMs})))} model=${JSON.stringify(ctx.model)}\n`);
+  // DEBUG: dump ctx keys into the separator itself so we can see them
+  const ctxKeys = Object.keys(ctx).sort().join(",");
+  const modelType = typeof (ctx as any).model;
+  const modelKeys = (ctx as any).model ? Object.keys((ctx as any).model).join(",") : "none";
+  const debugLabel = `ctx=[${ctxKeys}] model=${modelType}(${modelKeys})`;
 
-  // Try module state first, then ctx.model directly
+  // Get model from turn if recorded, otherwise from ctx directly
   let modelId = lastTurn?.modelId;
   if (!modelId || modelId === "unknown") {
     const m = (ctx as any).model;
-    modelId = m?.id ?? m?.name ?? "unknown";
+    if (typeof m === "string") modelId = m;
+    else if (m) modelId = m.id ?? m.name ?? m.model ?? "unknown";
+    else modelId = "unknown";
   }
   const shortModel = modelId.split("/").pop() ?? modelId;
 
@@ -177,13 +181,13 @@ export function injectTurnSeparator(pi: ExtensionAPI, ctx: ExtensionContext): vo
     ? ` · ${formatTokenCount((lastTurn.tokensIn ?? 0) + (lastTurn.tokensOut ?? 0))} tokens`
     : "";
 
-  const label = `─── turn ${turnIndex} ─── ${shortModel}${duration ? ` · ${duration}` : ""}${tokens} ───`;
+  const label = `─── turn ${turnIndex} ─── ${debugLabel} ───`;
 
   pi.sendMessage({
     customType: "meron-turn-separator",
     content: label,
     display: true,
-    details: { turnIndex, modelId: lastTurn?.modelId, duration: lastTurn?.durationMs },
+    details: { turnIndex, modelId, duration: lastTurn?.durationMs },
   }, { triggerTurn: false });
 }
 

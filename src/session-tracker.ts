@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { appendFileSync } from "node:fs";
 
 interface TurnInfo {
   index: number;
@@ -28,7 +27,6 @@ interface SessionState {
   totalTokensOut: number;
 }
 
-// Module-level state — persists across all event handlers in this extension instance
 let state: SessionState = createFreshState();
 
 function createFreshState(): SessionState {
@@ -54,21 +52,26 @@ function extractUsage(message: unknown): { tokensIn?: number; tokensOut?: number
   return { tokensIn, tokensOut };
 }
 
-const DEBUG_LOG = "C:/Users/imran/meron-debug.log";
-
-function log(msg: string): void {
-  try {
-    appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${msg}\n`);
-  } catch (e: any) {
-    try { appendFileSync(DEBUG_LOG, `LOG-ERROR ${e.message}\n`); } catch {}
+function captureModelFromEvent(event: unknown): void {
+  if (!isRecord(event)) return;
+  // Try event.model
+  const m = event.model;
+  if (isRecord(m)) {
+    const id = typeof m.id === "string" ? m.id : typeof m.name === "string" ? m.name : undefined;
+    const provider = typeof m.provider === "string" ? m.provider : undefined;
+    if (id) state.currentTurnModel = id;
+    if (provider) state.currentTurnProvider = provider;
   }
 }
 
-function captureModel(ctx: ExtensionContext): void {
+function captureModelFromCtx(ctx: ExtensionContext): void {
   const m = (ctx as any).model;
-  log(`captureModel: model=${!!m} keys=${m ? Object.keys(m).slice(0,10).join(',') : 'null'}`);
   if (!m) return;
-  log(`captureModel: id=${m.id} name=${m.name} provider=${m.provider}`);
+  if (typeof m === "string") {
+    state.currentTurnModel = m;
+    return;
+  }
+  if (!isRecord(m)) return;
   const id = typeof m.id === "string" ? m.id : typeof m.name === "string" ? m.name : undefined;
   const provider = typeof m.provider === "string" ? m.provider : undefined;
   if (id) state.currentTurnModel = id;
@@ -77,39 +80,39 @@ function captureModel(ctx: ExtensionContext): void {
 
 export function registerSessionTracker(pi: ExtensionAPI): void {
   pi.on("session_start", async () => {
-    log("session_start: resetting state");
     state = createFreshState();
   });
 
   pi.on("model_select", async (event) => {
-    log(`model_select: id=${event.model?.id} name=${event.model?.name} provider=${event.model?.provider}`);
-    if (event.model) {
-      state.currentTurnModel = event.model.id ?? event.model.name;
-      state.currentTurnProvider = event.model.provider;
-    }
+    captureModelFromEvent(event);
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
-    log("before_agent_start");
-    captureModel(ctx);
+    captureModelFromCtx(ctx);
   });
 
   pi.on("turn_start", async (event, ctx) => {
-    log(`turn_start: timestamp=${event.timestamp}`);
     state.currentTurnStart = event.timestamp ?? Date.now();
-    captureModel(ctx);
+    captureModelFromCtx(ctx);
+    captureModelFromEvent(event);
     state.currentTurnThinking = pi.getThinkingLevel();
     state.toolsUsed = [];
     state.errors = [];
   });
 
   pi.on("turn_end", async (event, ctx) => {
-    log(`turn_end: model=${state.currentTurnModel} start=${state.currentTurnStart} turns=${state.turns.length}`);
-    captureModel(ctx);
-    if (state.currentTurnStart == null) {
-      log(`turn_end: SKIPPING — no turn_start`);
-      return;
+    // Capture model from every possible source
+    captureModelFromCtx(ctx);
+    captureModelFromEvent(event);
+    // Also try the message itself
+    if (isRecord(event.message)) {
+      captureModelFromEvent(event.message);
+      if (isRecord(event.message.model)) {
+        captureModelFromEvent(event.message.model);
+      }
     }
+
+    if (state.currentTurnStart == null) return;
 
     const usage = extractUsage(event.message);
     if (usage.tokensIn) state.totalTokensIn += usage.tokensIn;
@@ -118,8 +121,8 @@ export function registerSessionTracker(pi: ExtensionAPI): void {
     const turn: TurnInfo = {
       index: state.turns.length,
       timestamp: state.currentTurnStart,
-      modelId: state.currentTurnModel ?? ctx.model?.id ?? "unknown",
-      providerId: state.currentTurnProvider ?? ctx.model?.provider ?? "unknown",
+      modelId: state.currentTurnModel ?? "unknown",
+      providerId: state.currentTurnProvider ?? "unknown",
       thinkingLevel: state.currentTurnThinking ?? "off",
       durationMs: Date.now() - state.currentTurnStart,
       tokensIn: usage.tokensIn,
