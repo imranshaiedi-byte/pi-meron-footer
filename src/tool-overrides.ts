@@ -619,35 +619,11 @@ function summarizeBashCommand(command: string): BashCommandSummary {
 
 function formatCollapsedBashCommand(
   command: string,
-  theme: RenderTheme,
+  _theme: RenderTheme,
 ): string {
   const rawCommand = command.trim();
-  if (!rawCommand) {
-    return "...";
-  }
-
-  const summary = summarizeBashCommand(rawCommand);
-  const contextText = summary.context.length > 0 ? `  ${summary.context.join(" • ")}` : "";
-  const actionWidth = Math.max(
-    BASH_COLLAPSED_MIN_ACTION_WIDTH,
-    BASH_COLLAPSED_TOTAL_WIDTH - visibleWidth(contextText),
-  );
-  const actionDisplay = truncateEndToWidth(summary.action, actionWidth);
-  const hints: string[] = [];
-
-  if (visibleWidth(summary.action) > visibleWidth(actionDisplay)) {
-    hints.push("truncated");
-  }
-
-  const wasCollapsed = summary.summarized || hints.length > 0;
-  const hintText = hints.length > 0 ? ` (${hints.join(" • ")} • Ctrl+O)` : "";
-  const mutedText = `${contextText}${hintText}`;
-
-  if (!wasCollapsed || !mutedText) {
-    return actionDisplay;
-  }
-
-  return `${actionDisplay}${theme.fg("muted", mutedText)}`;
+  if (!rawCommand) return "...";
+  return rawCommand;
 }
 
 function truncationHint(
