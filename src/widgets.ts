@@ -154,40 +154,24 @@ export function updateProgressIndicator(ctx: ExtensionContext): void {
 
 // Feature 5: Turn separator injection
 export function injectTurnSeparator(pi: ExtensionAPI, ctx: ExtensionContext): void {
-  const theme = getTheme(ctx);
-  if (!theme) return;
-
   const turnIndex = getTurnCount();
   const lastTurn = getLastTurn();
 
-  // DEBUG: dump ctx keys into the separator itself so we can see them
+  // DEBUG: always render, before any early returns
   const ctxKeys = Object.keys(ctx).sort().join(",");
-  const modelType = typeof (ctx as any).model;
-  const modelKeys = (ctx as any).model ? Object.keys((ctx as any).model).join(",") : "none";
-  const debugLabel = `ctx=[${ctxKeys}] model=${modelType}(${modelKeys})`;
+  const modelVal = (ctx as any).model;
+  const modelType = typeof modelVal;
+  const modelKeys = modelVal && modelType === "object" ? Object.keys(modelVal).join(",") : String(modelVal);
+  const uiTheme = ctx.ui?.theme;
+  const hasTheme = !!uiTheme;
 
-  // Get model from turn if recorded, otherwise from ctx directly
-  let modelId = lastTurn?.modelId;
-  if (!modelId || modelId === "unknown") {
-    const m = (ctx as any).model;
-    if (typeof m === "string") modelId = m;
-    else if (m) modelId = m.id ?? m.name ?? m.model ?? "unknown";
-    else modelId = "unknown";
-  }
-  const shortModel = modelId.split("/").pop() ?? modelId;
-
-  const duration = lastTurn ? formatDuration(lastTurn.durationMs) : "";
-  const tokens = lastTurn && (lastTurn.tokensIn || lastTurn.tokensOut)
-    ? ` · ${formatTokenCount((lastTurn.tokensIn ?? 0) + (lastTurn.tokensOut ?? 0))} tokens`
-    : "";
-
-  const label = `─── turn ${turnIndex} ─── ${debugLabel} ───`;
+  const label = `─── turn ${turnIndex} ─── ctx=[${ctxKeys}] model=${modelType}(${modelKeys}) theme=${hasTheme} ───`;
 
   pi.sendMessage({
     customType: "meron-turn-separator",
     content: label,
     display: true,
-    details: { turnIndex, modelId, duration: lastTurn?.durationMs },
+    details: { turnIndex, modelId: lastTurn?.modelId, duration: lastTurn?.durationMs },
   }, { triggerTurn: false });
 }
 
