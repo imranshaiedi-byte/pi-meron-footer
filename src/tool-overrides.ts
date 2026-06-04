@@ -511,7 +511,7 @@ function classifySetupSegment(segment: string): "directory" | "env" | "other" | 
   if (command === "export" || command === "unset" || tokens.every(isEnvAssignmentToken)) {
     return "env";
   }
-  if (command === "source" || command === "." || command === "set" || command === "shopt" || command === "umask" || command === "ulimit" || command === "alias") {
+  if (command === "source" || command === "." || command === "set" || command === "shopt" || command === "umask" || command === "ulimit" || command === "alias" || command === "true") {
     return "other";
   }
 
@@ -627,8 +627,9 @@ function formatCollapsedBashCommand(
   const MAX_WIDTH = 100;
 
   // Multi-line commands / heredocs: show the first line, collapse the rest.
+  // Single-line && chains still get segmented even if they contain shell keywords.
   const lines = rawCommand.split("\n").map((l) => l.trimEnd()).filter(Boolean);
-  if (lines.length > 1 || shouldUseRawBashDisplay(rawCommand)) {
+  if (lines.length > 1 || /<<-?\s*['"]?\w+/.test(rawCommand)) {
     const first = visibleWidth(lines[0] ?? rawCommand) > MAX_WIDTH - 20
       ? `${truncateEndToWidth(lines[0] ?? rawCommand, MAX_WIDTH - 20)}${theme.fg("muted", "…")}`
       : (lines[0] ?? rawCommand);
