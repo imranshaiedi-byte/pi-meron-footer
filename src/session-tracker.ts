@@ -27,22 +27,11 @@ interface SessionState {
   totalTokensOut: number;
 }
 
-const SESSION_STATE_KEY = "__piMeronSessionState";
+// Module-level state — persists across all event handlers in this extension instance
+let state: SessionState = createFreshState();
 
-interface StateCarrier {
-  [SESSION_STATE_KEY]?: SessionState;
-}
-
-function getOrCreateState(carrier: unknown): SessionState {
-  const c = carrier as Record<string, unknown>;
-  if (!c) {
-    const fresh: SessionState = { turns: [], filesChanged: new Set(), errors: [], toolsUsed: [], totalTokensIn: 0, totalTokensOut: 0 };
-    return fresh;
-  }
-  if (!c[SESSION_STATE_KEY]) {
-    c[SESSION_STATE_KEY] = { turns: [], filesChanged: new Set(), errors: [], toolsUsed: [], totalTokensIn: 0, totalTokensOut: 0 } satisfies SessionState;
-  }
-  return c[SESSION_STATE_KEY] as SessionState;
+function createFreshState(): SessionState {
+  return { turns: [], filesChanged: new Set(), errors: [], toolsUsed: [], totalTokensIn: 0, totalTokensOut: 0 };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -65,19 +54,11 @@ function extractUsage(message: unknown): { tokensIn?: number; tokensOut?: number
 }
 
 export function registerSessionTracker(pi: ExtensionAPI): void {
-  pi.on("session_start", async (_event, ctx) => {
-    const state = getOrCreateState(ctx.state);
-    state.turns = [];
-    state.filesChanged = new Set();
-    state.errors = [];
-    state.toolsUsed = [];
-    state.totalTokensIn = 0;
-    state.totalTokensOut = 0;
-    state.currentTurnStart = undefined;
+  pi.on("session_start", async () => {
+    state = createFreshState();
   });
 
   pi.on("turn_start", async (event, ctx) => {
-    const state = getOrCreateState(ctx.state);
     state.currentTurnStart = event.timestamp ?? Date.now();
     state.currentTurnModel = ctx.model?.id;
     state.currentTurnProvider = ctx.model?.provider;
@@ -87,7 +68,6 @@ export function registerSessionTracker(pi: ExtensionAPI): void {
   });
 
   pi.on("turn_end", async (event, ctx) => {
-    const state = getOrCreateState(ctx.state);
     if (state.currentTurnStart == null) return;
 
     const usage = extractUsage(event.message);
@@ -97,8 +77,8 @@ export function registerSessionTracker(pi: ExtensionAPI): void {
     const turn: TurnInfo = {
       index: state.turns.length,
       timestamp: state.currentTurnStart,
-      modelId: state.currentTurnModel ?? "unknown",
-      providerId: state.currentTurnProvider ?? "unknown",
+      modelId: state.currentTurnModel ?? ctx.model?.id ?? "unknown",
+      providerId: state.currentTurnProvider ?? ctx.model?.provider ?? "unknown",
       thinkingLevel: state.currentTurnThinking ?? "off",
       durationMs: Date.now() - state.currentTurnStart,
       tokensIn: usage.tokensIn,
@@ -111,8 +91,7 @@ export function registerSessionTracker(pi: ExtensionAPI): void {
     state.currentTurnStart = undefined;
   });
 
-  pi.on("tool_call", async (event, _ctx) => {
-    const state = getOrCreateState(_ctx.state);
+  pi.on("tool_call", async (event) => {
     state.toolsUsed.push(event.toolName);
 
     const filePath = extractPathFromArgs(event.toolName, event.input);
@@ -121,48 +100,44 @@ export function registerSessionTracker(pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("tool_execution_end", async (event, ctx) => {
+  pi.on("tool_execution_end", async (event) => {
     if (event.isError) {
-      const state = getOrCreateState(ctx.state);
       state.errors.push(event.toolName);
     }
   });
 
-  pi.on("message_end", async (event, ctx) => {
+  pi.on("message_end", async (event) => {
     if (!isRecord(event.message) || event.message.role !== "assistant") return;
     const usage = extractUsage(event.message);
-    const state = getOrCreateState(ctx.state);
     if (usage.tokensIn) state.totalTokensIn += usage.tokensIn;
     if (usage.tokensOut) state.totalTokensOut += usage.tokensOut;
   });
 }
 
-export function getSessionState(ctx: ExtensionContext): SessionState {
-  return getOrCreateState(ctx.state);
+export function getState(): SessionState {
+  return state;
 }
 
-export function getCurrentTurnInfo(ctx: ExtensionContext): TurnInfo | undefined {
-  const state = getOrCreateState(ctx.state);
-  return state.turns.length > 0 ? state.turns[state.turns.length - 1] : undefined;
+export function getSessionFilesChanged(): string[] {
+  return [...state.filesChanged];
 }
 
-export function getSessionFilesChanged(ctx: ExtensionContext): string[] {
-  return [...getOrCreateState(ctx.state).filesChanged];
+export function getSessionErrors(): string[] {
+  return [...state.errors];
 }
 
-export function getSessionErrors(ctx: ExtensionContext): string[] {
-  return getOrCreateState(ctx.state).errors;
-}
-
-export function getTotalTokens(ctx: ExtensionContext): { in: number; out: number } {
-  const state = getOrCreateState(ctx.state);
+export function getTotalTokens(): { in: number; out: number } {
   return { in: state.totalTokensIn, out: state.totalTokensOut };
 }
 
-export function getTurnCount(ctx: ExtensionContext): number {
-  return getOrCreateState(ctx.state).turns.length;
+export function getTurnCount(): number {
+  return state.turns.length;
 }
 
-export function getActiveToolCount(ctx: ExtensionContext): number {
-  return getOrCreateState(ctx.state).toolsUsed.length;
+export function getActiveToolCount(): number {
+  return state.toolsUsed.length;
+}
+
+export function getLastTurn(): TurnInfo | undefined {
+  return state.turns.length > 0 ? state.turns[state.turns.length - 1] : undefined;
 }
