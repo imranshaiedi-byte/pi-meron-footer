@@ -56,6 +56,20 @@ function extractUsage(message: unknown): { tokensIn?: number; tokensOut?: number
 function captureModel(ctx: ExtensionContext): void {
   const m = (ctx as any).model;
   if (!m) return;
+  // Debug: dump all keys to figure out the actual shape
+  const keys = Object.keys(m);
+  const snapshot: Record<string, unknown> = {};
+  for (const k of keys) {
+    const v = (m as any)[k];
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      snapshot[k] = v;
+    } else if (v == null) {
+      snapshot[k] = null;
+    } else {
+      snapshot[k] = typeof v;
+    }
+  }
+  console.error("[meron] ctx.model keys:", JSON.stringify(snapshot));
   const id = typeof m.id === "string" ? m.id : typeof m.name === "string" ? m.name : undefined;
   const provider = typeof m.provider === "string" ? m.provider : undefined;
   if (id) state.currentTurnModel = id;
