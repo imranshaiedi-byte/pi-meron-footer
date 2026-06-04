@@ -712,21 +712,9 @@ function renderCollapsedSummary(
   context: ToolRenderContextLike | undefined,
   _config: ToolDisplayConfig,
   summary: string,
-  theme: RenderTheme,
+  _theme: RenderTheme,
 ): Text {
-  const state = context?.state as Record<string, unknown> | undefined;
-  const startTime = state?._toolStartTime as number | undefined;
-  let duration: string | undefined;
-  if (startTime) {
-    const ms = Date.now() - startTime;
-    if (ms < 1000) duration = `${ms}ms`;
-    else if (ms < 60000) duration = `${Math.floor(ms / 1000)}s`;
-    else duration = `${Math.floor(ms / 60000)}m ${Math.floor(ms / 1000) % 60}s`;
-  }
-  const withTiming = duration
-    ? `${summary} ${theme.fg("dim", `• ${duration}`)}`
-    : summary;
-  return branchText(context, withTiming);
+  return branchText(context, summary);
 }
 
 export function recordWriteExecutionMeta(

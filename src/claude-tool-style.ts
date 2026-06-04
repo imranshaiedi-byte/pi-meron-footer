@@ -102,11 +102,7 @@ function getState(ctx: ToolContextLike | undefined): Record<string, unknown> | u
 export function syncToolStatus(ctx: ToolContextLike | undefined): void {
   const state = getState(ctx);
   if (!state) return;
-  if (!ctx?.executionStarted || ctx?.isPartial) {
-    state._toolStatus = "pending";
-    // Record start time on first render (pending state)
-    if (!state._toolStartTime) state._toolStartTime = Date.now();
-  }
+  if (!ctx?.executionStarted || ctx?.isPartial) state._toolStatus = "pending";
   else state._toolStatus = ctx.isError ? "error" : "success";
 }
 
