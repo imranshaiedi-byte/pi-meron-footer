@@ -624,11 +624,19 @@ function formatCollapsedBashCommand(
   const rawCommand = command.trim();
   if (!rawCommand) return "...";
 
-  const lines = rawCommand.split("\n").map((l) => l.trimEnd()).filter(Boolean);
-  if (lines.length <= 1) return rawCommand;
+  const MAX_WIDTH = 100;
 
-  // Multi-line: show first line + hint
-  return `${lines[0]!} ${theme.fg("muted", `… ${lines.length - 1} more lines • Ctrl+O`)}`;
+  const lines = rawCommand.split("\n").map((l) => l.trimEnd()).filter(Boolean);
+  if (lines.length <= 1) {
+    if (visibleWidth(rawCommand) <= MAX_WIDTH) return rawCommand;
+    return `${truncateEndToWidth(rawCommand, MAX_WIDTH - 3)}${theme.fg("muted", "…")}`;
+  }
+
+  // Multi-line: truncate first line + hint
+  const first = visibleWidth(lines[0]!) > MAX_WIDTH - 20
+    ? `${truncateEndToWidth(lines[0]!, MAX_WIDTH - 20)}${theme.fg("muted", "…")}`
+    : lines[0]!;
+  return `${first} ${theme.fg("muted", `… ${lines.length - 1} more lines • Ctrl+O`)}`;
 }
 
 function truncationHint(
