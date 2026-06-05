@@ -27,6 +27,7 @@ type Task = {
   activeForm?: string;
   status: TaskStatus;
   blockedBy?: number[];
+  parentId?: number;
   owner?: string;
   metadata?: Record<string, unknown>;
 };
@@ -93,6 +94,8 @@ const TodoParamsSchema = Type.Object({
   blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Initial dependency task ids for create." })),
   addBlockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Dependency task ids to add on update." })),
   removeBlockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Dependency task ids to remove on update." })),
+  parentId: Type.Optional(Type.Number({ description: "Parent task id. Creates a subtask on create; reparents on update." })),
+  clearParent: Type.Optional(Type.Boolean({ description: "Remove parent assignment, making this a root task. Only for update." })),
   owner: Type.Optional(Type.String({ description: "Optional owner/agent label." })),
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "Arbitrary metadata; null deletes a key on update." })),
   id: Type.Optional(Type.Number({ description: "Task id for update, get, or delete." })),
@@ -135,6 +138,7 @@ const PROMPT_GUIDELINES = [
   "Never mark work completed if tests are failing, implementation is partial, or unresolved errors remain; keep it in_progress and create a blocker task if needed.",
   "Use short imperative subjects. Use activeForm for present-continuous labels shown in the live todo overlay.",
   "Use blockedBy/addBlockedBy/removeBlockedBy to capture task dependencies. Dependency cycles and references to missing/deleted tasks are rejected.",
+  "Use parentId on create to nest subtasks under a parent task. Subtasks appear indented in the overlay. Use clearParent on update to promote a subtask back to root level.",
 ];
 
 function cloneState(input: TaskState): TaskState {
@@ -199,6 +203,22 @@ function detectCycle(tasks: Task[], targetId: number, nextBlockedBy: number[]): 
   return visit(targetId);
 }
 
+function isAncestorOf(tasks: Task[], ancestorId: number, descendantId: number): boolean {
+  const parentMap = new Map<number, number>();
+  for (const task of tasks) {
+    if (task.parentId !== undefined) parentMap.set(task.id, task.parentId);
+  }
+  let currentId: number | undefined = parentMap.get(descendantId);
+  const visited = new Set<number>();
+  while (currentId !== undefined) {
+    if (currentId === ancestorId) return true;
+    if (visited.has(currentId)) return false;
+    visited.add(currentId);
+    currentId = parentMap.get(currentId);
+  }
+  return false;
+}
+
 function errorResult(current: TaskState, message: string): { state: TaskState; op: Operation } {
   return { state: current, op: { kind: "error", message } };
 }
@@ -214,10 +234,17 @@ function applyMutation(current: TaskState, action: TaskAction, params: MutationP
         if (!depTask) return errorResult(current, `blockedBy: #${dep} not found`);
         if (depTask.status === "deleted") return errorResult(current, `blockedBy: #${dep} is deleted`);
       }
+      const parentId = normalizeId(params.parentId);
+      if (parentId !== undefined) {
+        const parentTask = current.tasks.find((task) => task.id === parentId);
+        if (!parentTask) return errorResult(current, `parentId: #${parentId} not found`);
+        if (parentTask.status === "deleted") return errorResult(current, `parentId: #${parentId} is deleted`);
+      }
       const task: Task = { id: current.nextId, subject, status: "pending" };
       if (typeof params.description === "string") task.description = params.description;
       if (typeof params.activeForm === "string") task.activeForm = params.activeForm;
       if (blockedBy.length > 0) task.blockedBy = blockedBy;
+      if (parentId !== undefined) task.parentId = parentId;
       if (typeof params.owner === "string") task.owner = params.owner;
       if (params.metadata && typeof params.metadata === "object" && !Array.isArray(params.metadata)) task.metadata = { ...params.metadata };
       return { state: { tasks: [...current.tasks, task], nextId: current.nextId + 1 }, op: { kind: "create", taskId: task.id } };
@@ -230,7 +257,7 @@ function applyMutation(current: TaskState, action: TaskAction, params: MutationP
       const existing = current.tasks[index]!;
       if (existing.status === "deleted") return errorResult(current, `#${id} is deleted`);
 
-      const hasMutation = params.subject !== undefined || params.description !== undefined || params.activeForm !== undefined || params.status !== undefined || params.owner !== undefined || params.metadata !== undefined || normalizeIdList(params.addBlockedBy).length > 0 || normalizeIdList(params.removeBlockedBy).length > 0;
+      const hasMutation = params.subject !== undefined || params.description !== undefined || params.activeForm !== undefined || params.status !== undefined || params.owner !== undefined || params.metadata !== undefined || params.parentId !== undefined || params.clearParent === true || normalizeIdList(params.addBlockedBy).length > 0 || normalizeIdList(params.removeBlockedBy).length > 0;
       if (!hasMutation) return errorResult(current, "update requires at least one mutable field");
 
       const nextStatus = isStatus(params.status) ? params.status : existing.status;
@@ -248,11 +275,26 @@ function applyMutation(current: TaskState, action: TaskAction, params: MutationP
       }
       if (detectCycle(current.tasks, id, blockedBy)) return errorResult(current, "addBlockedBy would create a cycle");
 
+      let nextParentId = existing.parentId;
+      const newParentId = normalizeId(params.parentId);
+      if (newParentId !== undefined) {
+        if (newParentId === id) return errorResult(current, `cannot set #${id} as its own parent`);
+        const parentTask = current.tasks.find((task) => task.id === newParentId);
+        if (!parentTask) return errorResult(current, `parentId: #${newParentId} not found`);
+        if (parentTask.status === "deleted") return errorResult(current, `parentId: #${newParentId} is deleted`);
+        if (isAncestorOf(current.tasks, id, newParentId)) return errorResult(current, `parentId: #${newParentId} is a descendant of #${id}, would create a cycle`);
+        nextParentId = newParentId;
+      } else if (params.clearParent === true) {
+        nextParentId = undefined;
+      }
+
       const updated: Task = { ...existing, status: nextStatus };
       if (typeof params.subject === "string") updated.subject = params.subject.trim() || updated.subject;
       if (params.description !== undefined) updated.description = typeof params.description === "string" ? params.description : undefined;
       if (params.activeForm !== undefined) updated.activeForm = typeof params.activeForm === "string" ? params.activeForm : undefined;
       if (params.owner !== undefined) updated.owner = typeof params.owner === "string" ? params.owner : undefined;
+      if (nextParentId !== undefined) updated.parentId = nextParentId;
+      else delete updated.parentId;
       if (blockedBy.length > 0) updated.blockedBy = blockedBy;
       else delete updated.blockedBy;
       if (params.metadata && typeof params.metadata === "object" && !Array.isArray(params.metadata)) {
@@ -306,6 +348,95 @@ function counts(input = state) {
   };
 }
 
+type TaskNode = {
+  task: Task;
+  children: TaskNode[];
+};
+
+type FlatTreeNode = {
+  node: TaskNode;
+  depth: number;
+  isLast: boolean;
+  parentIsLast: boolean[];
+};
+
+function buildTaskTree(tasks: Task[]): TaskNode[] {
+  const nodeMap = new Map<number, TaskNode>();
+  const roots: TaskNode[] = [];
+
+  for (const task of tasks) {
+    nodeMap.set(task.id, { task, children: [] });
+  }
+
+  for (const node of nodeMap.values()) {
+    const pid = node.task.parentId;
+    if (pid !== undefined && nodeMap.has(pid)) {
+      nodeMap.get(pid)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  for (const node of nodeMap.values()) {
+    node.children.sort((a, b) => a.task.id - b.task.id);
+  }
+  roots.sort((a, b) => a.task.id - b.task.id);
+
+  return roots;
+}
+
+function flattenTree(roots: TaskNode[]): FlatTreeNode[] {
+  const result: FlatTreeNode[] = [];
+
+  function walk(nodes: TaskNode[], depth: number, parentIsLast: boolean[]) {
+    for (let i = 0; i < nodes.length; i++) {
+      const isLast = i === nodes.length - 1;
+      result.push({
+        node: nodes[i]!,
+        depth,
+        isLast,
+        parentIsLast: [...parentIsLast],
+      });
+      if (nodes[i]!.children.length > 0) {
+        walk(nodes[i]!.children, depth + 1, [...parentIsLast, isLast]);
+      }
+    }
+  }
+
+  walk(roots, 0, []);
+  return result;
+}
+
+function treePrefix(flat: FlatTreeNode, branch: (text: string) => string, continuation: (text: string) => string): string {
+  let prefix = "";
+  for (let level = 0; level < flat.depth; level++) {
+    if (level < flat.depth - 1) {
+      prefix += flat.parentIsLast[level] ? "   " : continuation("│  ");
+    } else {
+      prefix += flat.isLast ? branch("└─ ") : branch("├─ ");
+    }
+  }
+  if (flat.depth === 0) {
+    prefix = flat.isLast ? branch("└─ ") : branch("├─ ");
+  }
+  return prefix;
+}
+
+function plainTreePrefix(flat: FlatTreeNode): string {
+  let prefix = "";
+  for (let level = 0; level < flat.depth; level++) {
+    if (level < flat.depth - 1) {
+      prefix += flat.parentIsLast[level] ? "   " : "│  ";
+    } else {
+      prefix += flat.isLast ? "└─ " : "├─ ";
+    }
+  }
+  if (flat.depth === 0) {
+    prefix = flat.isLast ? "└─ " : "├─ ";
+  }
+  return prefix;
+}
+
 function taskLine(task: Task, theme: Theme): string {
   const glyph = theme.fg(STATUS_COLOR[task.status], STATUS_GLYPH[task.status]);
   const subjectColor = task.status === "completed" || task.status === "deleted" ? "muted" : "text";
@@ -315,10 +446,13 @@ function taskLine(task: Task, theme: Theme): string {
   return `${glyph} ${styledSubject}`;
 }
 
-function plainTaskLine(task: Task, glyph = STATUS_GLYPH[task.status]): string {
+function plainTaskLine(task: Task, prefix: string, options: { showStatus?: boolean; showParentHint?: boolean } = {}): string {
+  const glyph = STATUS_GLYPH[task.status];
+  const status = options.showStatus ? ` [${task.status}]` : "";
   const form = task.status === "in_progress" && task.activeForm ? ` (${task.activeForm})` : "";
+  const parent = options.showParentHint && task.parentId !== undefined ? `    ↰ #${task.parentId}` : "";
   const deps = task.blockedBy?.length ? `    ⛓ ${task.blockedBy.map((id) => `#${id}`).join(",")}` : "";
-  return `  ${glyph} #${task.id} ${task.subject}${form}${deps}`;
+  return `${prefix}${glyph} #${task.id}${status} ${task.subject}${form}${parent}${deps}`;
 }
 
 function formatContent(action: TaskAction, params: MutationParams, snapshot: TaskState, op: Operation): string {
@@ -326,7 +460,9 @@ function formatContent(action: TaskAction, params: MutationParams, snapshot: Tas
   switch (op.kind) {
     case "create": {
       const task = snapshot.tasks.find((task) => task.id === op.taskId);
-      return task ? `Created #${task.id}: ${task.subject}` : `Created #${op.taskId}`;
+      if (!task) return `Created #${op.taskId}`;
+      const parentSuffix = task.parentId !== undefined ? ` (subtask of #${task.parentId})` : "";
+      return `Created #${task.id}: ${task.subject}${parentSuffix}`;
     }
     case "update": {
       const task = snapshot.tasks.find((task) => task.id === op.id);
@@ -336,12 +472,15 @@ function formatContent(action: TaskAction, params: MutationParams, snapshot: Tas
       return `Deleted #${op.id}: ${op.subject}`;
     case "clear":
       return `Cleared ${op.count} ${pluralize(op.count, "todo", "todos")}`;
-    case "get":
-      return `#${op.task.id} ${op.task.subject} (${STATUS_LABEL[op.task.status]})`;
+    case "get": {
+      const parentSuffix = op.task.parentId !== undefined ? ` · subtask of #${op.task.parentId}` : "";
+      const depsSuffix = op.task.blockedBy?.length ? ` · blocked by ${op.task.blockedBy.map((id) => `#${id}`).join(",")}` : "";
+      return `#${op.task.id} ${op.task.subject} (${STATUS_LABEL[op.task.status]})${parentSuffix}${depsSuffix}`;
+    }
     case "list": {
       const tasks = snapshot.tasks.filter((task) => (op.includeDeleted || task.status !== "deleted") && (!op.statusFilter || task.status === op.statusFilter));
       if (tasks.length === 0) return "No todos.";
-      return tasks.map((task) => `#${task.id} [${task.status}] ${task.subject}`).join("\n");
+      return formatPlainTaskTree(tasks, { showStatus: true, showParentHints: true });
     }
   }
 }
@@ -381,6 +520,10 @@ function renderTodoCall(args: MutationParams, theme: Theme, context: any): Text 
     summary += ` ${theme.fg("muted", "clear")}`;
   } else if (action === "create" && typeof args.subject === "string") {
     summary += ` ${theme.fg("text", args.subject)}`;
+    const parentId = normalizeId(args.parentId);
+    if (parentId !== undefined) {
+      summary += ` ${theme.fg("muted", `→ #${parentId}`)}`;
+    }
   } else if ((action === "update" || action === "get" || action === "delete") && args.id !== undefined) {
     const id = normalizeId(args.id);
     const task = id === undefined ? undefined : state.tasks.find((task) => task.id === id);
@@ -487,15 +630,20 @@ class TodoOverlay {
     const heading = `${theme.fg(hasActive ? "accent" : "muted", hasActive ? "●" : "○")} ${theme.fg(hasActive ? "accent" : "muted", `Todos (${taskCounts.completed}/${taskCounts.total})`)}`;
     const lines = [truncateToWidth(heading, width, "…")];
 
-    // Keep checklist rows stable in creation order. Status changes should update
-    // the glyph in-place instead of moving tasks around and making the list jump.
-    const sorted = [...tasks].sort((a, b) => a.id - b.id);
-    const visible = sorted.slice(0, MAX_WIDGET_LINES - 1);
-    const hidden = sorted.length - visible.length;
-    for (const [index, task] of visible.entries()) {
-      const branch = index === visible.length - 1 && hidden <= 0 ? "└─" : "├─";
-      lines.push(truncateToWidth(`${theme.fg("muted", branch)} ${taskLine(task, theme)}`, width, "…"));
-      if (task.status === "completed" && !this.hiddenCompleted.has(task.id)) this.completedPendingHide.add(task.id);
+    const roots = buildTaskTree(tasks);
+    const flat = flattenTree(roots);
+    const visible = flat.slice(0, MAX_WIDGET_LINES - 1);
+    const hidden = flat.length - visible.length;
+
+    const branchFn = (text: string) => theme.fg("muted", text);
+    const contFn = (text: string) => theme.fg("muted", text);
+
+    for (const entry of visible) {
+      const prefix = treePrefix(entry, branchFn, contFn);
+      lines.push(truncateToWidth(`${prefix}${taskLine(entry.node.task, theme)}`, width, "…"));
+      if (entry.node.task.status === "completed" && !this.hiddenCompleted.has(entry.node.task.id)) {
+        this.completedPendingHide.add(entry.node.task.id);
+      }
     }
     if (hidden > 0) {
       lines.push(truncateToWidth(`${theme.fg("muted", "└─")} ${theme.fg("muted", `+${hidden} more`)}`, width, "…"));
@@ -526,22 +674,24 @@ function replayFromSession(ctx: any): TaskState {
   return replay;
 }
 
+function formatPlainTaskTree(tasks: Task[], options: { showStatus?: boolean; showParentHints?: boolean } = {}): string {
+  const roots = buildTaskTree(tasks);
+  const flat = flattenTree(roots);
+  return flat.map((entry) => {
+    const hasVisibleParent = entry.node.task.parentId !== undefined && tasks.some((task) => task.id === entry.node.task.parentId);
+    return plainTaskLine(entry.node.task, plainTreePrefix(entry), {
+      showStatus: options.showStatus,
+      showParentHint: options.showParentHints && entry.node.task.parentId !== undefined && !hasVisibleParent,
+    });
+  }).join("\n");
+}
+
 function renderCommandLines(): string[] {
   const visible = visibleTasks();
   if (visible.length === 0) return ["No todos yet. Ask the agent to add some."];
   const taskCounts = counts();
   const header = `${taskCounts.completed}/${taskCounts.total} completed · ${taskCounts.inProgress} in progress · ${taskCounts.pending} pending`;
-  const lines = [header];
-  const addGroup = (label: string, status: TaskStatus) => {
-    const group = visible.filter((task) => task.status === status);
-    if (group.length === 0) return;
-    lines.push(`── ${label} ──`);
-    for (const task of group) lines.push(plainTaskLine(task));
-  };
-  addGroup("In Progress", "in_progress");
-  addGroup("Pending", "pending");
-  addGroup("Completed", "completed");
-  return lines;
+  return [header, ...formatPlainTaskTree(visible).split("\n")];
 }
 
 export function getTodoCountsForFooter(): { open: number; inProgress: number; total: number } {
@@ -555,8 +705,8 @@ export function registerTodoExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: TOOL_NAME,
     label: TOOL_LABEL,
-    description: "Manage a persistent task list for tracking multi-step coding progress. Supports create, update, list, get, delete, and clear, with dependencies via blockedBy.",
-    promptSnippet: "Manage a small todo list for multi-step progress",
+    description: "Manage a persistent task tree for detailed multi-step coding progress. Supports create, update, list, get, delete, clear, dependencies via blockedBy, and subtasks via parentId.",
+    promptSnippet: "Manage a compact task tree for multi-step progress",
     promptGuidelines: PROMPT_GUIDELINES,
     parameters: TodoParamsSchema,
     async execute(_toolCallId, params) {
@@ -576,7 +726,7 @@ export function registerTodoExtension(pi: ExtensionAPI): void {
 
   for (const name of COMMAND_NAMES) {
     pi.registerCommand(name, {
-      description: name === "todo" ? "Alias for /todos" : "Show todos grouped by status",
+      description: name === "todo" ? "Alias for /todos" : "Show todos as a compact task tree",
       handler: async (args, ctx) => {
         const trimmed = args.trim();
         if (trimmed === "clear") {
