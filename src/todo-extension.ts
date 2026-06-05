@@ -478,10 +478,9 @@ class TodoOverlay {
     const heading = `${theme.fg(hasActive ? "accent" : "muted", hasActive ? "●" : "○")} ${theme.fg(hasActive ? "accent" : "muted", `Todos (${taskCounts.completed}/${taskCounts.total})`)}`;
     const lines = [truncateToWidth(heading, width, "…")];
 
-    const sorted = [...tasks].sort((a, b) => {
-      const rank = (task: Task) => task.status === "in_progress" ? 0 : task.status === "pending" ? 1 : 2;
-      return rank(a) - rank(b) || a.id - b.id;
-    });
+    // Keep checklist rows stable in creation order. Status changes should update
+    // the glyph in-place instead of moving tasks around and making the list jump.
+    const sorted = [...tasks].sort((a, b) => a.id - b.id);
     const visible = sorted.slice(0, MAX_WIDGET_LINES - 1);
     const hidden = sorted.length - visible.length;
     for (const [index, task] of visible.entries()) {
