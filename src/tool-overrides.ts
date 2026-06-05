@@ -272,22 +272,10 @@ function formatBashNoOutputLine(
   return theme.fg("muted", "(no output)");
 }
 
-const BASH_COLLAPSED_TOTAL_WIDTH = 120;
-const BASH_COLLAPSED_MIN_ACTION_WIDTH = 40;
 const BASH_CONTEXT_PATH_WIDTH = 36;
-
-interface BashCommandSummary {
-  action: string;
-  context: string[];
-  summarized: boolean;
-}
 
 function truncateEndToWidth(text: string, width: number): string {
   return visibleWidth(text) <= width ? text : truncateToWidth(text, width, "…");
-}
-
-function flattenBashCommand(command: string): string {
-  return command.replace(/\\\s*\r?\n/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function unquoteShellToken(value: string): string {
@@ -424,17 +412,6 @@ function envNameFromAssignment(token: string): string | undefined {
   return match?.[1];
 }
 
-function formatEnvNames(names: string[]): string | undefined {
-  const unique = [...new Set(names)].filter(Boolean);
-  if (unique.length === 0) {
-    return undefined;
-  }
-
-  const visible = unique.slice(0, 3).join(",");
-  const hidden = unique.length - 3;
-  return hidden > 0 ? `${visible},+${hidden}` : visible;
-}
-
 function shortenShellPath(inputPath: string): string {
   const expanded = shortenPath(unquoteShellToken(inputPath));
   if (visibleWidth(expanded) <= BASH_CONTEXT_PATH_WIDTH) {
@@ -516,105 +493,6 @@ function classifySetupSegment(segment: string): "directory" | "env" | "other" | 
   }
 
   return undefined;
-}
-
-function collectExportedEnvNames(segment: string): string[] {
-  const tokens = tokenizeShellWords(segment);
-  if (tokens[0] !== "export" && tokens[0] !== "unset") {
-    return [];
-  }
-
-  return tokens
-    .slice(1)
-    .map((token) => envNameFromAssignment(token) ?? token.replace(/^-+/, ""))
-    .filter((token) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(token));
-}
-
-function shouldUseRawBashDisplay(command: string): boolean {
-  if (/<<-?\s*['"]?\w+/.test(command)) {
-    return true;
-  }
-
-  const controlCommands = new Set(["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "function"]);
-  return splitShellSegments(command).some((segment) => {
-    const first = tokenizeShellWords(segment)[0];
-    return first ? controlCommands.has(first) : false;
-  });
-}
-
-function summarizeBashCommand(command: string): BashCommandSummary {
-  const rawCommand = command.trim();
-  const flattened = flattenBashCommand(rawCommand);
-  const commandLines = rawCommand
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (!flattened || shouldUseRawBashDisplay(rawCommand)) {
-    const context = commandLines.length > 1 ? [`${commandLines.length} lines`] : [];
-    return { action: flattened || "...", context, summarized: context.length > 0 };
-  }
-  const segments = splitShellSegments(rawCommand);
-  const actions: string[] = [];
-  const envNames: string[] = [];
-  let directory: string | undefined;
-  let hiddenSetupCount = 0;
-
-  for (const segment of segments) {
-    const setup = classifySetupSegment(segment);
-    if (setup) {
-      if (setup === "directory") {
-        directory = parseDirectoryChange(segment) ?? directory;
-      } else if (setup === "env") {
-        envNames.push(...collectExportedEnvNames(segment));
-        envNames.push(...tokenizeShellWords(segment).map((token) => envNameFromAssignment(token)).filter((name): name is string => Boolean(name)));
-      } else {
-        hiddenSetupCount++;
-      }
-      continue;
-    }
-
-    const stripped = stripLeadingEnvAssignments(segment);
-    envNames.push(...stripped.envNames);
-    if (stripped.command) {
-      actions.push(stripped.command);
-    }
-  }
-
-  if (actions.length === 0) {
-    return { action: flattened || "...", context: [], summarized: false };
-  }
-
-  const action = actions.length === 1
-    ? actions[0] ?? flattened
-    : actions.length === 2
-      ? `${actions[0]} → ${actions[1]}`
-      : `${actions[0]} → … → ${actions[actions.length - 1]}`;
-
-  const context: string[] = [];
-  if (directory) {
-    context.push(`in ${directory}`);
-  }
-
-  const envText = formatEnvNames(envNames);
-  if (envText) {
-    context.push(`env ${envText}`);
-  }
-  if (hiddenSetupCount > 0) {
-    context.push(`${hiddenSetupCount} ${pluralize(hiddenSetupCount, "setup step")}`);
-  }
-  if (actions.length > 2) {
-    context.push(`${actions.length} actions`);
-  }
-  if (commandLines.length > 1) {
-    context.push(`${commandLines.length} lines`);
-  }
-
-  return {
-    action,
-    context,
-    summarized: action !== flattened || context.length > 0,
-  };
 }
 
 function formatCollapsedBashCommand(

@@ -48,14 +48,29 @@ function twoColumnLine(left: string, right: string, width: number, innerWidth: n
 		return padLine(`${left}${" ".repeat(innerWidth - leftWidth - rightWidth)}${right}`, width, innerWidth);
 	}
 
-	const rightWidthAvailable = Math.max(0, innerWidth - leftWidth - 2);
-	if (rightWidthAvailable > 0) {
-		const truncatedRight = truncateToWidth(right, rightWidthAvailable, "");
-		const gap = " ".repeat(Math.max(0, innerWidth - leftWidth - visibleWidth(truncatedRight)));
-		return padLine(`${left}${gap}${truncatedRight}`, width, innerWidth);
+	const leftBudget = Math.max(1, innerWidth - rightWidth - 2);
+	if (leftBudget > 8) {
+		const truncatedLeft = truncateToWidth(left, leftBudget, ASCII_ELLIPSIS);
+		const gap = " ".repeat(Math.max(2, innerWidth - visibleWidth(truncatedLeft) - rightWidth));
+		return padLine(`${truncatedLeft}${gap}${right}`, width, innerWidth);
 	}
 
 	return padLine(truncateToWidth(left, innerWidth, ASCII_ELLIPSIS), width, innerWidth);
+}
+
+function responsiveFooterLines(left: string, right: string, width: number, innerWidth: number): string[] {
+	if (innerWidth <= 0) return [""];
+
+	if (visibleWidth(left) + visibleWidth(right) + 2 <= innerWidth) {
+		return [twoColumnLine(left, right, width, innerWidth), ""];
+	}
+
+	// Narrow layout: use two rows instead of allowing the right side to disappear.
+	return [
+		padLine(left, width, innerWidth),
+		padLine(right, width, innerWidth),
+		"",
+	];
 }
 
 function compactCwd(cwd: string): string {
@@ -96,10 +111,12 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 
 			const rightSide = [modelLabel(ctx), pi.getThinkingLevel(), renderContextUsage(ctx, theme)].join(" • ");
 
-			return [
-				twoColumnLine(theme.fg("text", leftSide), theme.fg("text", rightSide), width, innerWidth),
-				"",
-			];
+			return responsiveFooterLines(
+				theme.fg("text", leftSide),
+				theme.fg("text", rightSide),
+				width,
+				innerWidth,
+			);
 		},
 	}));
 }
