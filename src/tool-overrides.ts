@@ -502,7 +502,7 @@ function formatCollapsedBashCommand(
   const rawCommand = command.trim();
   if (!rawCommand) return "...";
 
-  const MAX_WIDTH = 100;
+  const MAX_WIDTH = 180;
 
   // Multi-line commands / heredocs: show the first line, collapse the rest.
   // Single-line && chains still get segmented even if they contain shell keywords.
