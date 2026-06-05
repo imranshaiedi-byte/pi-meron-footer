@@ -408,33 +408,23 @@ function flattenTree(roots: TaskNode[]): FlatTreeNode[] {
 }
 
 function treePrefix(flat: FlatTreeNode, branch: (text: string) => string, continuation: (text: string) => string): string {
+  if (flat.depth === 0) return flat.isLast ? branch("└─ ") : branch("├─ ");
+
   let prefix = "";
   for (let level = 0; level < flat.depth; level++) {
-    if (level < flat.depth - 1) {
-      prefix += flat.parentIsLast[level] ? "   " : continuation("│  ");
-    } else {
-      prefix += flat.isLast ? branch("└─ ") : branch("├─ ");
-    }
+    prefix += flat.parentIsLast[level] ? "   " : continuation("│  ");
   }
-  if (flat.depth === 0) {
-    prefix = flat.isLast ? branch("└─ ") : branch("├─ ");
-  }
-  return prefix;
+  return prefix + (flat.isLast ? branch("└─ ") : branch("├─ "));
 }
 
 function plainTreePrefix(flat: FlatTreeNode): string {
+  if (flat.depth === 0) return flat.isLast ? "└─ " : "├─ ";
+
   let prefix = "";
   for (let level = 0; level < flat.depth; level++) {
-    if (level < flat.depth - 1) {
-      prefix += flat.parentIsLast[level] ? "   " : "│  ";
-    } else {
-      prefix += flat.isLast ? "└─ " : "├─ ";
-    }
+    prefix += flat.parentIsLast[level] ? "   " : "│  ";
   }
-  if (flat.depth === 0) {
-    prefix = flat.isLast ? "└─ " : "├─ ";
-  }
-  return prefix;
+  return prefix + (flat.isLast ? "└─ " : "├─ ");
 }
 
 function taskLine(task: Task, theme: Theme): string {
