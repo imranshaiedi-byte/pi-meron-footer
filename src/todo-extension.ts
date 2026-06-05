@@ -425,10 +425,8 @@ class TodoOverlay {
   }
 
   hideCompletedTasksFromPreviousTurn(): void {
-    for (const id of this.completedPendingHide) this.hiddenCompleted.add(id);
-    this.completedPendingHide.clear();
-    this.tui?.requestRender?.();
-    this.update();
+    // Keep completed tasks visible until the list is explicitly cleared.
+    // This makes the overlay behave like a normal checklist instead of a transient activity feed.
   }
 
   update(): void {
@@ -468,7 +466,7 @@ class TodoOverlay {
   }
 
   private selectOverlayTasks(): Task[] {
-    return state.tasks.filter((task) => task.status !== "deleted" && !(task.status === "completed" && this.hiddenCompleted.has(task.id)));
+    return state.tasks.filter((task) => task.status !== "deleted");
   }
 
   private render(theme: Theme, width: number): string[] {
