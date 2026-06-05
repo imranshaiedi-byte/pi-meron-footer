@@ -10,6 +10,7 @@ const COMMAND_NAMES = ["todos", "todo"] as const;
 const STATE_ENTRY_TYPE = "meron-todo-state";
 const WIDGET_KEY = "meron-todos";
 const MAX_WIDGET_LINES = 12;
+const MAX_TASK_DEPTH = 3;
 
 type Theme = {
   fg(name: string, value: string): string;
@@ -94,7 +95,7 @@ const TodoParamsSchema = Type.Object({
   blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Initial dependency task ids for create." })),
   addBlockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Dependency task ids to add on update." })),
   removeBlockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Dependency task ids to remove on update." })),
-  parentId: Type.Optional(Type.Number({ description: "Parent task id. Creates a subtask on create; reparents on update." })),
+  parentId: Type.Optional(Type.Number({ description: "Parent task id. Creates a subtask on create; reparents on update. Max depth is 3 levels." })),
   clearParent: Type.Optional(Type.Boolean({ description: "Remove parent assignment, making this a root task. Only for update." })),
   owner: Type.Optional(Type.String({ description: "Optional owner/agent label." })),
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "Arbitrary metadata; null deletes a key on update." })),
@@ -138,7 +139,8 @@ const PROMPT_GUIDELINES = [
   "Never mark work completed if tests are failing, implementation is partial, or unresolved errors remain; keep it in_progress and create a blocker task if needed.",
   "Use short imperative subjects. Use activeForm for present-continuous labels shown in the live todo overlay.",
   "Use blockedBy/addBlockedBy/removeBlockedBy to capture task dependencies. Dependency cycles and references to missing/deleted tasks are rejected.",
-  "Use parentId on create to nest subtasks under a parent task. Subtasks appear indented in the overlay. Use clearParent on update to promote a subtask back to root level.",
+  "Use parentId on create to nest meaningful subtasks under a parent task. Prefer shallow 2-level plans; max depth is 3 levels (parent → child → grandchild). Use sibling subtasks instead of deeper nesting.",
+  "Use clearParent on update to promote a subtask back to root level.",
 ];
 
 function cloneState(input: TaskState): TaskState {
@@ -219,6 +221,44 @@ function isAncestorOf(tasks: Task[], ancestorId: number, descendantId: number): 
   return false;
 }
 
+function taskDepth(tasks: Task[], id: number): number | undefined {
+  const taskMap = new Map(tasks.map((task) => [task.id, task]));
+  let task = taskMap.get(id);
+  if (!task || task.status === "deleted") return undefined;
+
+  let depth = 1;
+  const visited = new Set<number>([id]);
+  while (task.parentId !== undefined) {
+    if (visited.has(task.parentId)) return undefined;
+    const parent = taskMap.get(task.parentId);
+    if (!parent || parent.status === "deleted") break;
+    depth++;
+    visited.add(parent.id);
+    task = parent;
+  }
+  return depth;
+}
+
+function subtreeHeight(tasks: Task[], rootId: number): number {
+  const children = new Map<number, Task[]>();
+  for (const task of tasks) {
+    if (task.status !== "deleted" && task.parentId !== undefined) {
+      const siblings = children.get(task.parentId) ?? [];
+      siblings.push(task);
+      children.set(task.parentId, siblings);
+    }
+  }
+
+  function walk(id: number, visited = new Set<number>()): number {
+    if (visited.has(id)) return 0;
+    visited.add(id);
+    const childHeights = (children.get(id) ?? []).map((child) => walk(child.id, new Set(visited)));
+    return 1 + (childHeights.length > 0 ? Math.max(...childHeights) : 0);
+  }
+
+  return walk(rootId);
+}
+
 function errorResult(current: TaskState, message: string): { state: TaskState; op: Operation } {
   return { state: current, op: { kind: "error", message } };
 }
@@ -239,6 +279,9 @@ function applyMutation(current: TaskState, action: TaskAction, params: MutationP
         const parentTask = current.tasks.find((task) => task.id === parentId);
         if (!parentTask) return errorResult(current, `parentId: #${parentId} not found`);
         if (parentTask.status === "deleted") return errorResult(current, `parentId: #${parentId} is deleted`);
+        const parentDepth = taskDepth(current.tasks, parentId);
+        if (parentDepth === undefined) return errorResult(current, `parentId: #${parentId} has invalid ancestry`);
+        if (parentDepth >= MAX_TASK_DEPTH) return errorResult(current, `parentId would exceed max task depth of ${MAX_TASK_DEPTH}`);
       }
       const task: Task = { id: current.nextId, subject, status: "pending" };
       if (typeof params.description === "string") task.description = params.description;
@@ -283,6 +326,10 @@ function applyMutation(current: TaskState, action: TaskAction, params: MutationP
         if (!parentTask) return errorResult(current, `parentId: #${newParentId} not found`);
         if (parentTask.status === "deleted") return errorResult(current, `parentId: #${newParentId} is deleted`);
         if (isAncestorOf(current.tasks, id, newParentId)) return errorResult(current, `parentId: #${newParentId} is a descendant of #${id}, would create a cycle`);
+        const parentDepth = taskDepth(current.tasks, newParentId);
+        if (parentDepth === undefined) return errorResult(current, `parentId: #${newParentId} has invalid ancestry`);
+        const resultingDepth = parentDepth + subtreeHeight(current.tasks, id);
+        if (resultingDepth > MAX_TASK_DEPTH) return errorResult(current, `parentId would exceed max task depth of ${MAX_TASK_DEPTH}`);
         nextParentId = newParentId;
       } else if (params.clearParent === true) {
         nextParentId = undefined;
@@ -695,7 +742,7 @@ export function registerTodoExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: TOOL_NAME,
     label: TOOL_LABEL,
-    description: "Manage a persistent task tree for detailed multi-step coding progress. Supports create, update, list, get, delete, clear, dependencies via blockedBy, and subtasks via parentId.",
+    description: "Manage a persistent task tree for detailed multi-step coding progress. Supports create, update, list, get, delete, clear, dependencies via blockedBy, and subtasks via parentId up to 3 levels deep.",
     promptSnippet: "Manage a compact task tree for multi-step progress",
     promptGuidelines: PROMPT_GUIDELINES,
     parameters: TodoParamsSchema,
