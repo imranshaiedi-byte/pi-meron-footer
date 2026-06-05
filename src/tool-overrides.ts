@@ -12,6 +12,7 @@ import type {
 import { Container, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   makeToolText,
+  ToolText,
   patchToolContainerStyle,
   setToolResultStatus,
   syncToolStatus,
@@ -229,6 +230,45 @@ function styledText(context: ToolRenderContextLike | undefined, text: string): T
 
 function branchText(context: ToolRenderContextLike | undefined, text: string): Text {
   return styledText(context, withBranch(text));
+}
+
+class DynamicBashHeaderText extends Text {
+  private readonly inner = new ToolText();
+  private command = "";
+  private theme?: RenderTheme;
+  private context?: ToolRenderContextLike;
+
+  constructor() {
+    super("", 0, 0);
+  }
+
+  setData(command: string, theme: RenderTheme, context?: ToolRenderContextLike): void {
+    this.command = command;
+    this.theme = theme;
+    this.context = context;
+    this.invalidate();
+  }
+
+  override invalidate(): void {
+    this.inner.invalidate();
+  }
+
+  override render(width: number): string[] {
+    if (!this.theme) return [];
+    // Leave room for the status dot/tool label and a little wrapping slack.
+    const summaryWidth = Math.max(40, width - 18);
+    const summary = formatCollapsedBashCommand(this.command, this.theme, summaryWidth);
+    this.inner.setText(toolHeader("Bash", summary, this.theme, this.context));
+    return this.inner.render(width);
+  }
+}
+
+function dynamicBashHeader(context: ToolRenderContextLike | undefined, command: string, theme: RenderTheme): Text {
+  const component = context?.lastComponent instanceof DynamicBashHeaderText
+    ? context.lastComponent
+    : new DynamicBashHeaderText();
+  component.setData(command, theme, context);
+  return component;
 }
 
 function buildPreviewText(
@@ -498,11 +538,12 @@ function classifySetupSegment(segment: string): "directory" | "env" | "other" | 
 function formatCollapsedBashCommand(
   command: string,
   theme: RenderTheme,
+  maxWidth = 100,
 ): string {
   const rawCommand = command.trim();
   if (!rawCommand) return "...";
 
-  const MAX_WIDTH = 180;
+  const MAX_WIDTH = Math.max(40, maxWidth);
 
   // Multi-line commands / heredocs: show the first line, collapse the rest.
   // Single-line && chains still get segmented even if they contain shell keywords.
@@ -1617,7 +1658,7 @@ export function registerToolDisplayOverrides(
         );
         return styledText(context, `${header}\n${branchLines.join("\n")}`);
       }
-      return styledText(context, toolHeader("Bash", formatCollapsedBashCommand(command, theme), theme, context));
+      return dynamicBashHeader(context, command, theme);
     },
     renderResult(result, options, theme, context) {
       const config = getConfig();
