@@ -31,9 +31,9 @@ Overlay example:
 
 ```text
 ● Todos (1/3)
-├─ ◐ #2 Add todo overlay (rendering widget)
-├─ ○ #3 Wire footer badge ⛓ #2
-└─ ✓ #1 Research rpiv-todo
+├─ ◐ Add todo overlay
+├─ ○ Wire footer badge
+└─ ✓ Research rpiv-todo
 ```
 
 Slash commands:

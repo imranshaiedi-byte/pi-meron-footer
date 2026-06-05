@@ -306,16 +306,13 @@ function counts(input = state) {
   };
 }
 
-function taskLine(task: Task, theme: Theme, showId = true): string {
+function taskLine(task: Task, theme: Theme): string {
   const glyph = theme.fg(STATUS_COLOR[task.status], STATUS_GLYPH[task.status]);
   const subjectColor = task.status === "completed" || task.status === "deleted" ? "muted" : "text";
   const styledSubject = task.status === "completed" && theme.strikethrough
     ? theme.strikethrough(theme.fg(subjectColor, task.subject))
     : theme.fg(subjectColor, task.subject);
-  const id = showId ? ` ${theme.fg("accent", `#${task.id}`)}` : "";
-  const form = task.status === "in_progress" && task.activeForm ? ` ${theme.fg("muted", `(${task.activeForm})`)}` : "";
-  const deps = task.blockedBy?.length ? ` ${theme.fg("muted", `⛓ ${task.blockedBy.map((dep) => `#${dep}`).join(",")}`)}` : "";
-  return `${glyph}${id} ${styledSubject}${form}${deps}`;
+  return `${glyph} ${styledSubject}`;
 }
 
 function plainTaskLine(task: Task, glyph = STATUS_GLYPH[task.status]): string {
@@ -491,7 +488,7 @@ class TodoOverlay {
     const hidden = sorted.length - visible.length;
     for (const [index, task] of visible.entries()) {
       const branch = index === visible.length - 1 && hidden <= 0 ? "└─" : "├─";
-      lines.push(truncateToWidth(`${theme.fg("muted", branch)} ${taskLine(task, theme, true)}`, width, "…"));
+      lines.push(truncateToWidth(`${theme.fg("muted", branch)} ${taskLine(task, theme)}`, width, "…"));
       if (task.status === "completed" && !this.hiddenCompleted.has(task.id)) this.completedPendingHide.add(task.id);
     }
     if (hidden > 0) {
