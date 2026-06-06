@@ -4,7 +4,7 @@ A comprehensive pi extension suite providing footer/status bar, tool display ove
 
 ## Features
 
-### Meron Footer
+### Footer
 Clean padded footer/status bar showing:
 - Current working directory, session name, and git branch
 - Model provider/id, thinking level, context usage, and session cost

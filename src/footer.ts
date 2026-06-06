@@ -1,5 +1,5 @@
 /**
- * Meron Footer Extension
+ * Footer Extension
  *
  * Adds a clean padded footer/status bar for pi.
  */
@@ -141,7 +141,7 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 	});
 }
 
-export function registerMeronFooter(pi: ExtensionAPI) {
+export function registerFooter(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
 		setPaddedFooter(pi, ctx);
