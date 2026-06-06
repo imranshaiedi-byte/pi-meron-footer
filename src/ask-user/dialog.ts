@@ -112,6 +112,7 @@ export class QuestionnaireDialog {
 
   // SelectList per question (lazily created)
   private selectLists: (SelectList | null)[];
+  private selectedRowIndexes: number[];
 
   // Current highlighted preview
   private currentPreview: string | undefined;
@@ -134,6 +135,7 @@ export class QuestionnaireDialog {
     this.previewTexts = new Array(n).fill(undefined);
     this.chatAnswers = new Array(n).fill(false);
     this.selectLists = new Array(n).fill(null);
+    this.selectedRowIndexes = new Array(n).fill(0);
 
     this.component = {
       render: (width: number) => this.render(width),
@@ -225,7 +227,9 @@ export class QuestionnaireDialog {
     const list = new SelectList(items, Math.min(items.length + 1, 12), selectListTheme(this.theme));
 
     list.onSelectionChange = (item: SelectItem) => {
-      const row = rows.find((r) => r.label === item.value);
+      const rowIndex = rows.findIndex((r) => r.label === item.value);
+      if (rowIndex >= 0) this.selectedRowIndexes[index] = rowIndex;
+      const row = rowIndex >= 0 ? rows[rowIndex] : undefined;
       this.currentPreview = row?.preview;
       this.tui.requestRender();
     };
@@ -239,6 +243,9 @@ export class QuestionnaireDialog {
     list.onCancel = () => {
       this.done(null);
     };
+
+    const selectedIndex = Math.min(Math.max(0, this.selectedRowIndexes[index] ?? 0), Math.max(0, items.length - 1));
+    list.setSelectedIndex(selectedIndex);
 
     this.selectLists[index] = list;
     return list;
