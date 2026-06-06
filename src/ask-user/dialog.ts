@@ -252,6 +252,12 @@ export class QuestionnaireDialog {
     const selectedIndex = Math.min(Math.max(0, this.selectedRowIndexes[index] ?? 0), Math.max(0, items.length - 1));
     list.setSelectedIndex(selectedIndex);
 
+    // Trigger preview for initial selection so it shows immediately
+    const initialItem = items[selectedIndex];
+    if (initialItem) {
+      list.onSelectionChange(initialItem);
+    }
+
     this.selectLists[index] = list;
     return list;
   }
