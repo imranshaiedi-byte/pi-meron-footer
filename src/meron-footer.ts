@@ -78,6 +78,21 @@ function compactCwd(cwd: string): string {
 	return home && cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd;
 }
 
+function calcSessionCost(ctx: any): number {
+	let total = 0;
+	for (const entry of ctx.sessionManager.getEntries()) {
+		if (entry.type === "message" && entry.message.role === "assistant") {
+			total += entry.message.usage?.cost?.total ?? 0;
+		}
+	}
+	return total;
+}
+
+function renderCost(ctx: any): string {
+	const cost = calcSessionCost(ctx);
+	return `$${cost.toFixed(3)}`;
+}
+
 function renderContextUsage(ctx: any, theme: Theme): string {
 	const usage = ctx.getContextUsage?.();
 	const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
@@ -113,7 +128,7 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 				const branch = footerData.getGitBranch();
 				if (branch) leftSide += ` • ${branch}`;
 
-				const rightSide = [modelLabel(ctx), pi.getThinkingLevel(), renderContextUsage(ctx, theme)].join(" • ");
+				const rightSide = [modelLabel(ctx), pi.getThinkingLevel(), renderContextUsage(ctx, theme), renderCost(ctx)].join(" • ");
 
 				return responsiveFooterLines(
 					theme.fg("text", leftSide),
