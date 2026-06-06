@@ -47,21 +47,52 @@ function renderCallSummary(args: QuestionParams, theme: any, context: any): stri
   return toolHeader(TOOL_LABEL, chips, theme, context);
 }
 
-function renderResultSummary(result: QuestionnaireResult | undefined, theme: any, context: any): string {
+function truncatePlain(value: string, max = 72): string {
+  return value.length <= max ? value : `${value.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function answerLabel(answer: QuestionAnswer, params: QuestionParams | undefined): string {
+  const header = params?.questions?.[answer.questionIndex]?.header?.trim();
+  if (header) return header;
+  return truncatePlain(answer.question.replace(/\?\s*$/, ""), 32);
+}
+
+function compactAnswerSummary(answer: QuestionAnswer, expanded: boolean): string {
+  if (answer.kind === "chat") return "chat requested";
+  if (answer.kind === "multi") {
+    const selected = answer.selected ?? [];
+    if (selected.length === 0) return "no selections";
+    return truncatePlain(selected.join(", "), expanded ? 160 : 80);
+  }
+
+  const value = answer.answer ?? "";
+  if (!value) return "no input";
+  if (answer.kind === "custom" && !expanded && value.length > 48) {
+    return `custom response (${value.length} chars)`;
+  }
+  return truncatePlain(value, expanded ? 160 : 80);
+}
+
+function renderResultSummary(
+  result: QuestionnaireResult | undefined,
+  params: QuestionParams | undefined,
+  theme: any,
+  expanded: boolean,
+): string {
   if (!result || result.cancelled) {
     return theme.fg("muted", DECLINE_MESSAGE);
   }
 
-  const parts: string[] = [];
-  for (const answer of result.answers) {
-    const q = answer.question;
-    const shortQ = q.length > 40 ? `${q.slice(0, 37)}...` : q;
-    const a = formatAnswerSummary(answer);
-    parts.push(`"${shortQ}"="${a}"`);
-  }
+  const count = result.answers.length;
+  if (count === 0) return theme.fg("muted", DECLINE_MESSAGE);
 
-  if (parts.length === 0) return theme.fg("muted", DECLINE_MESSAGE);
-  return theme.fg("success", "✓") + " " + theme.fg("muted", parts.join(" "));
+  const lines = [theme.fg("muted", `Answered ${count} ${count === 1 ? "question" : "questions"}`)];
+  for (const answer of result.answers) {
+    const label = theme.fg("accent", answerLabel(answer, params));
+    const summary = theme.fg("text", compactAnswerSummary(answer, expanded));
+    lines.push(`• ${label}: ${summary}`);
+  }
+  return lines.join("\n");
 }
 
 export function registerAskUserQuestionTool(pi: ExtensionAPI): void {
@@ -156,8 +187,9 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
       return makeToolText(context?.lastComponent, text);
     },
 
-    renderResult(result, _options, theme, context) {
+    renderResult(result, options, theme, context) {
       const details = result.details as QuestionnaireResult | undefined;
+      const params = context?.args as QuestionParams | undefined;
       const isError = context?.isError === true;
       setToolResultStatus(context, isError);
 
@@ -168,7 +200,7 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
         return makeToolText(context?.lastComponent, text);
       }
 
-      const text = withBranch(renderResultSummary(details, theme, context));
+      const text = withBranch(renderResultSummary(details, params, theme, options.expanded === true));
       return makeToolText(context?.lastComponent, text);
     },
   });
