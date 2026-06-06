@@ -83,6 +83,11 @@ function selectListTheme(theme: ThemeLike): SelectListTheme {
   };
 }
 
+function padAnsiRight(line: string, width: number): string {
+  const clipped = truncateToWidth(line, width, "…");
+  return `${clipped}${" ".repeat(Math.max(0, width - visibleWidth(clipped)))}`;
+}
+
 // ---------------------------------------------------------------------------
 // QuestionnaireDialog
 // ---------------------------------------------------------------------------
@@ -463,34 +468,74 @@ export class QuestionnaireDialog {
     );
     container.addChild(new Spacer(1));
 
-    // Options (via SelectList)
+    // Options (via SelectList). When the focused option has preview text and
+    // the terminal is wide enough, render options + preview side-by-side.
     const list = this.getSelectList(index);
-    if (list) {
-      container.addChild(list);
+    if (!list) return;
+
+    if (this.currentPreview && width >= 96) {
+      container.addChild(this.renderSideBySidePreview(list));
+      return;
     }
 
-    // Preview pane (if current option has preview)
+    container.addChild(list);
+
+    // Narrow fallback: preview below the option list.
     if (this.currentPreview) {
       container.addChild(new Spacer(1));
       container.addChild(
         new Text(this.theme.fg("dim", "─── Preview ───"), 1, 0),
       );
-      const previewLines = this.currentPreview.split("\n");
-      const maxPreviewLines = 8;
-      const shown = previewLines.slice(0, maxPreviewLines);
       container.addChild(
         new Text(
-          shown.map((l) => this.theme.fg("toolOutput", l)).join("\n"),
+          this.buildPreviewLines(Math.max(1, width - 2), 8).join("\n"),
           1,
           0,
         ),
       );
-      if (previewLines.length > maxPreviewLines) {
-        container.addChild(
-          new Text(this.theme.fg("dim", `... +${previewLines.length - maxPreviewLines} more lines`), 1, 0),
-        );
-      }
     }
+  }
+
+  private renderSideBySidePreview(list: SelectList): Component {
+    return {
+      invalidate: () => list.invalidate(),
+      render: (width: number) => {
+        const gap = 3;
+        const leftWidth = Math.max(34, Math.min(52, Math.floor(width * 0.42)));
+        const rightWidth = Math.max(24, width - leftWidth - gap);
+        const divider = this.theme.fg("dim", "│");
+
+        const listLines = list.render(leftWidth);
+        const previewLines = [
+          this.theme.fg("dim", "Preview"),
+          this.theme.fg("dim", "─".repeat(Math.max(8, Math.min(24, rightWidth)))),
+          ...this.buildPreviewLines(rightWidth, 12),
+        ];
+
+        const lineCount = Math.max(listLines.length, previewLines.length);
+        const lines: string[] = [];
+        for (let i = 0; i < lineCount; i++) {
+          const left = padAnsiRight(listLines[i] ?? "", leftWidth);
+          const right = truncateToWidth(previewLines[i] ?? "", rightWidth, "…");
+          lines.push(`${left} ${divider} ${right}`);
+        }
+        return lines;
+      },
+    };
+  }
+
+  private buildPreviewLines(width: number, maxLines: number): string[] {
+    const preview = this.currentPreview ?? "";
+    const rawLines = preview.split("\n");
+    const shown = rawLines.slice(0, maxLines).map((line) => (
+      this.theme.fg("toolOutput", truncateToWidth(line, width, "…"))
+    ));
+
+    const remaining = rawLines.length - shown.length;
+    if (remaining > 0) {
+      shown.push(this.theme.fg("dim", `... +${remaining} more lines`));
+    }
+    return shown;
   }
 
   private renderReviewContent(container: Container, width: number): void {
