@@ -67,10 +67,7 @@ function compactAnswerSummary(answer: QuestionAnswer, expanded: boolean): string
 
   const value = answer.answer ?? "";
   if (!value) return "no input";
-  if (answer.kind === "custom" && !expanded && value.length > 48) {
-    return `custom response (${value.length} chars)`;
-  }
-  return truncatePlain(value, expanded ? 160 : 80);
+  return truncatePlain(value, expanded ? 180 : 120);
 }
 
 function renderResultSummary(
