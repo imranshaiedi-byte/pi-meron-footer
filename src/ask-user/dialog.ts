@@ -163,6 +163,12 @@ export class QuestionnaireDialog {
       return;
     }
 
+    // Review tab: Enter submits
+    if (this.phase === "review" && matchesKey(data, Key.enter)) {
+      this.submitFromReview();
+      return;
+    }
+
     // Space → toggle multi-select
     const q = this.params.questions[this.currentTab];
     if (q?.multiSelect && matchesKey(data, Key.space)) {
