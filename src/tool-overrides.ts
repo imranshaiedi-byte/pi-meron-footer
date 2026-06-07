@@ -1437,6 +1437,7 @@ export function registerToolDisplayOverrides(
       return executeBuiltInTool(bootstrapTools.find, toolCallId, params, signal, onUpdate, ctx);
     },
     renderCall(args, theme, context) {
+      setLastKnownTheme(theme);
       const scope = shortenPath(args.path || ".");
       const limitSuffix = args.limit !== undefined ? ` (limit ${args.limit})` : "";
       return styledText(context, toolHeader("Find", `"${args.pattern}" in ${scope}${limitSuffix}`, theme, context));
