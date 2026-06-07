@@ -65,36 +65,38 @@ export function registerDashboard(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.hasUI) return;
     
-    ctx.ui.setWidget("meron-dashboard", {
-      placement: "aboveEditor",
-      render: (tui: TUI, theme: Theme, width: number): string[] => {
-        const thinkingLevel = pi.getThinkingLevel();
-        const data = getDashboardData(ctx, thinkingLevel);
-        
-        const contextBar = formatContextBar(data.contextPercent, theme);
-        const taskCount = theme.fg("accent", `⚡ ${data.activeTasks}`);
-        const cost = theme.fg("muted", formatCost(data.sessionCost));
-        const mode = theme.fg("dim", data.thinkingLevel);
-        
-        // Build the dashboard line
-        const parts = [
-          theme.fg("muted", "Context:"),
-          contextBar,
-          theme.fg("dim", "│"),
-          taskCount,
-          theme.fg("dim", "│"),
-          cost,
-          theme.fg("dim", "│"),
-          mode,
-        ];
-        
-        const line = parts.join(" ");
-        
-        // Add separator line
-        const separator = theme.fg("dim", "─".repeat(Math.min(width, 80)));
-        
-        return [line, separator];
-      },
-    });
+    ctx.ui.setWidget("meron-dashboard", (tui: any, theme: Theme) => {
+      return {
+        render: (width: number): string[] => {
+          const thinkingLevel = pi.getThinkingLevel();
+          const data = getDashboardData(ctx, thinkingLevel);
+          
+          const contextBar = formatContextBar(data.contextPercent, theme);
+          const taskCount = theme.fg("accent", `⚡ ${data.activeTasks}`);
+          const cost = theme.fg("muted", formatCost(data.sessionCost));
+          const mode = theme.fg("dim", data.thinkingLevel);
+          
+          // Build the dashboard line
+          const parts = [
+            theme.fg("muted", "Context:"),
+            contextBar,
+            theme.fg("dim", "│"),
+            taskCount,
+            theme.fg("dim", "│"),
+            cost,
+            theme.fg("dim", "│"),
+            mode,
+          ];
+          
+          const line = parts.join(" ");
+          
+          // Add separator line
+          const separator = theme.fg("dim", "─".repeat(Math.min(width, 80)));
+          
+          return [line, separator];
+        },
+        invalidate: () => {},
+      };
+    }, { placement: "aboveEditor" });
   });
 }
