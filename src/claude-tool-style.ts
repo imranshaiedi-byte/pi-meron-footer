@@ -83,10 +83,10 @@ function normalizePanelLine(toolName: string, line: string): string {
   const leading = line.slice(0, line.length - line.trimStart().length);
 
   if (normalizedTool === "web_search" && plain.startsWith("WebSearch ")) {
-    return `${leading}${plain.slice("WebSearch ".length)}`;
+    return `${leading || " "}${plain.slice("WebSearch ".length)}`;
   }
   if (normalizedTool === "web_fetch" && plain.startsWith("WebFetch ")) {
-    return `${leading}${plain.slice("WebFetch ".length)}`;
+    return `${leading || " "}${plain.slice("WebFetch ".length)}`;
   }
   return line;
 }
