@@ -8,17 +8,10 @@ const WRAP_MARK = "\uE000";
 const PATCH_FLAG = Symbol.for("pi-meron-suite:claude-tool-container-style");
 const ORIGINAL_RENDER = Symbol.for("pi-meron-suite:claude-tool-container-original-render");
 
-// Glass UI: subtle vertical accent bar
-const GLASS_BAR = "\x1b[38;2;70;80;95m│\x1b[0m\x1b[49m";
-const TOOL_RULE = "\x1b[38;2;90;95;105m";
+// Tool chrome is intentionally hardcoded white so grayscale-v5 stays truly grayscale.
+const GLASS_BAR = "\x1b[38;2;255;255;255m│\x1b[0m\x1b[49m";
+const TOOL_RULE = "\x1b[38;2;255;255;255m";
 const GLASS_PREFIX_W = 2;
-
-// Store the last known theme for use in container rendering
-let lastKnownTheme: RenderThemeLike | null = null;
-
-export function setLastKnownTheme(theme: RenderThemeLike): void {
-  lastKnownTheme = theme;
-}
 
 export interface RenderThemeLike {
   fg(color: string, text: string): string;
@@ -81,35 +74,29 @@ function getStatus(container: any): string {
   return "pending";
 }
 
-function themed(color: string, text: string): string {
-  return lastKnownTheme ? lastKnownTheme.fg(color, text) : `${TOOL_RULE}${text}${TRANSPARENT_RESET}`;
+function toolChrome(text: string): string {
+  return `${TOOL_RULE}${text}${TRANSPARENT_RESET}`;
 }
 
-function statusGlyph(status: string): string {
-  if (status === "success") return themed("success", "●");
-  if (status === "error") return themed("error", "●");
-  return themed("dim", "●");
-}
-
-function buildTopBorder(toolName: string, status: string, width: number): string {
+function buildTopBorder(toolName: string, _status: string, width: number): string {
   const badge = ` ${capitalize(toolName)} `;
   const badgeWidth = visibleWidth(badge);
   const fixedVisibleWidth = 2 + badgeWidth + 1 + 2; // ╭─, badge, ●, ─╮
   const fillVisibleWidth = Math.max(0, width - fixedVisibleWidth);
   const fill = "─".repeat(fillVisibleWidth);
 
-  return `${themed("border", "╭─")}${themed("accent", badge)}${themed("border", fill)}${statusGlyph(status)}${themed("border", "─╮")}`;
+  return toolChrome(`╭─${badge}${fill}●─╮`);
 }
 
 function buildBottomBorder(width: number): string {
   const fillWidth = Math.max(0, width - 4);
   const fill = "─".repeat(fillWidth);
-  return themed("border", `╰─${fill}─╯`);
+  return toolChrome(`╰─${fill}─╯`);
 }
 
 function wrapLineWithBorders(line: string, innerWidth: number): string {
   const paddedLine = padToWidth(line, innerWidth);
-  return `${themed("border", "│")}${paddedLine}${themed("border", "│")}`;
+  return `${toolChrome("│")}${paddedLine}${toolChrome("│")}`;
 }
 
 export function patchToolContainerStyle(): void {
@@ -201,12 +188,12 @@ export function toolHeader(tool: string, summary: string, theme: RenderThemeLike
 }
 
 function branchIndent(text: string, continued = false): string {
-  const prefix = continued ? `${themed("border", "│")}  ` : "   ";
+  const prefix = continued ? `${toolChrome("│")}  ` : "   ";
   return `${prefix}${WRAP_MARK}${text}`;
 }
 
 function branchLead(text: string, continued = false): string {
-  return `${themed("border", continued ? "├─" : "└─")} ${WRAP_MARK}${text}`;
+  return `${toolChrome(continued ? "├─" : "└─")} ${WRAP_MARK}${text}`;
 }
 
 export function withBranch(content: string, continued = false): string {
@@ -235,7 +222,7 @@ function padToWidth(line: string, width: number): string {
 function markedContinuationPrefix(prefix: string): string {
   const plain = stripAnsi(prefix);
   const branchMatch = /^(\s*)(?:│  |├─ |└─ )/.exec(plain);
-  if (branchMatch) return `${branchMatch[1]}${themed("border", "│")}  `;
+  if (branchMatch) return `${branchMatch[1]}${toolChrome("│")}  `;
   return " ".repeat(visibleWidth(prefix));
 }
 
