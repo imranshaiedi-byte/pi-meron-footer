@@ -4,8 +4,10 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 const RESET = "\x1b[0m";
 const TRANSPARENT_BG = "\x1b[49m";
 const WHITE = "\x1b[38;2;255;255;255m";
+const BLACK_BG = "\x1b[48;2;0;0;0m";
 const CHROME_RESET = `${RESET}${TRANSPARENT_BG}`;
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const OSC_PROMPT_RE = /\x1b\](?:133|633);[A-Z](?:;[^\x07\x1b]*)?(?:\x07|\x1b\\)/g;
 const PATCH_OWNER = "pi-meron-suite:user-message-box";
 const CONTENT_PAD = 1;
 
@@ -17,15 +19,19 @@ interface PatchableUserMessagePrototype {
 }
 
 function chrome(text: string): string {
-  return `${WHITE}${text}${CHROME_RESET}`;
+  return `${BLACK_BG}${WHITE}${text}${CHROME_RESET}`;
 }
 
-function stripAnsi(text: string): string {
-  return text.replace(ANSI_RE, "");
+function contentBg(text: string): string {
+  return `${BLACK_BG}${text}${CHROME_RESET}`;
+}
+
+function stripControl(text: string): string {
+  return text.replace(OSC_PROMPT_RE, "").replace(ANSI_RE, "");
 }
 
 function isBlankLine(text: string): boolean {
-  return stripAnsi(text).trim().length === 0;
+  return stripControl(text).trim().length === 0;
 }
 
 function padToWidth(line: string, width: number): string {
@@ -57,14 +63,14 @@ function buildSingleLineBox(line: string, width: number): string {
 
 function wrapLine(line: string, contentWidth: number): string {
   const pad = " ".repeat(CONTENT_PAD);
-  return `${chrome("│")}${pad}${padToWidth(line, contentWidth)}${pad}${chrome("│")}`;
+  return `${chrome("│")}${contentBg(`${pad}${padToWidth(line, contentWidth)}${pad}`)}${chrome("│")}`;
 }
 
 function normalizeContentLine(line: string): string {
-  // Pi's native user renderer pads message rows to the provided width before
-  // this wrapper sees them. Strip ANSI and right-padding so our box can size
-  // itself to the actual prompt content instead of the full terminal width.
-  return stripAnsi(line).trimEnd();
+  // Pi's native user renderer wraps prompts in a padded Box and adds OSC prompt
+  // markers. Strip those presentation details so this wrapper sizes and
+  // classifies rows from the actual prompt content.
+  return stripControl(line).replace(/^ /, "").trimEnd();
 }
 
 function trimBlankEdges(lines: string[]): string[] {
