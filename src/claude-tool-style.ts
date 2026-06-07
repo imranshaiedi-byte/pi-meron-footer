@@ -184,7 +184,7 @@ function statusDot(ctx: ToolContextLike | undefined, theme: RenderThemeLike): st
 export function toolHeader(_tool: string, summary: string, theme: RenderThemeLike, ctx?: ToolContextLike): string {
   syncToolStatus(ctx);
   // Tool name is already shown in the panel border; keep the inner line focused on the action/target.
-  return summary ? `${statusDot(ctx, theme)}→ ${WRAP_MARK}${theme.fg("accent", summary)}` : `${statusDot(ctx, theme)}`;
+  return summary ? `${statusDot(ctx, theme)}${WRAP_MARK}${theme.fg("accent", summary)}` : `${statusDot(ctx, theme)}`;
 }
 
 function branchIndent(text: string, continued = false): string {
