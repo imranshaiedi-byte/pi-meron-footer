@@ -8,7 +8,6 @@ const CHROME_RESET = `${RESET}${TRANSPARENT_BG}`;
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 const PATCH_OWNER = "pi-meron-suite:user-message-box";
 const CONTENT_PAD = 1;
-const MIN_BOX_WIDTH = 18;
 
 interface PatchableUserMessagePrototype {
   render(width: number): string[];
@@ -100,21 +99,15 @@ function patchUserMessagePrototype(): void {
     const rendered = originalRender.call(this, maxContentWidth);
     const content = trimBlankEdges(Array.isArray(rendered) ? rendered : []);
     const body = content.length > 0 ? content : [""];
-    const widestContentLine = body.reduce((max, line) => Math.max(max, visibleWidth(line)), 0);
-    const boxWidth = Math.min(
-      safeWidth,
-      Math.max(MIN_BOX_WIDTH, widestContentLine + 2 + CONTENT_PAD * 2),
-    );
-    const contentWidth = Math.max(1, boxWidth - 2 - CONTENT_PAD * 2);
-
     if (body.length === 1 && !body[0]?.includes("\n")) {
-      return [buildSingleLineBox(body[0] ?? "", boxWidth)];
+      return [buildSingleLineBox(body[0] ?? "", safeWidth)];
     }
 
+    const contentWidth = Math.max(1, safeWidth - 2 - CONTENT_PAD * 2);
     return [
-      buildTopBorder(boxWidth),
+      buildTopBorder(safeWidth),
       ...body.map((line) => wrapLine(line, contentWidth)),
-      buildBottomBorder(boxWidth),
+      buildBottomBorder(safeWidth),
     ];
   };
 
