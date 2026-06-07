@@ -52,15 +52,6 @@ function buildBottomBorder(width: number): string {
   return chrome(`╰─${fill}─╯`);
 }
 
-function buildSingleLineBox(line: string, width: number): string {
-  const prefix = "╭─ You: ";
-  const suffix = " ─╮";
-  const contentWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(suffix));
-  const content = truncateToWidth(line, contentWidth, "…");
-  const fill = "─".repeat(Math.max(0, contentWidth - visibleWidth(content)));
-  return chrome(`${prefix}${content}${fill}${suffix}`);
-}
-
 function wrapLine(line: string, contentWidth: number): string {
   const pad = " ".repeat(CONTENT_PAD);
   return `${chrome("│")}${contentBg(`${pad}${padToWidth(line, contentWidth)}${pad}`)}${chrome("│")}`;
@@ -101,15 +92,10 @@ function patchUserMessagePrototype(): void {
       return originalRender.call(this, safeWidth);
     }
 
-    const maxContentWidth = Math.max(1, safeWidth - 2 - CONTENT_PAD * 2);
-    const rendered = originalRender.call(this, maxContentWidth);
+    const contentWidth = Math.max(1, safeWidth - 2 - CONTENT_PAD * 2);
+    const rendered = originalRender.call(this, contentWidth);
     const content = trimBlankEdges(Array.isArray(rendered) ? rendered : []);
     const body = content.length > 0 ? content : [""];
-    if (body.length === 1 && !body[0]?.includes("\n")) {
-      return [buildSingleLineBox(body[0] ?? "", safeWidth)];
-    }
-
-    const contentWidth = Math.max(1, safeWidth - 2 - CONTENT_PAD * 2);
     return [
       buildTopBorder(safeWidth),
       ...body.map((line) => wrapLine(line, contentWidth)),
