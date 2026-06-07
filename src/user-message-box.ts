@@ -47,6 +47,15 @@ function buildBottomBorder(width: number): string {
   return chrome(`╰─${fill}─╯`);
 }
 
+function buildSingleLineBox(line: string, width: number): string {
+  const prefix = "╭─ You: ";
+  const suffix = " ─╮";
+  const contentWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(suffix));
+  const content = truncateToWidth(line, contentWidth, "…");
+  const fill = "─".repeat(Math.max(0, contentWidth - visibleWidth(content)));
+  return chrome(`${prefix}${content}${fill}${suffix}`);
+}
+
 function wrapLine(line: string, contentWidth: number): string {
   const pad = " ".repeat(CONTENT_PAD);
   return `${chrome("│")}${pad}${padToWidth(line, contentWidth)}${pad}${chrome("│")}`;
@@ -90,8 +99,11 @@ function patchUserMessagePrototype(): void {
     );
     const contentWidth = Math.max(1, boxWidth - 2 - CONTENT_PAD * 2);
 
+    if (body.length === 1 && !body[0]?.includes("\n")) {
+      return [buildSingleLineBox(body[0] ?? "", boxWidth)];
+    }
+
     return [
-      "",
       buildTopBorder(boxWidth),
       ...body.map((line) => wrapLine(line, contentWidth)),
       buildBottomBorder(boxWidth),
