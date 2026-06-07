@@ -93,17 +93,24 @@ function renderCost(ctx: any): string {
 	return `$${cost.toFixed(3)}`;
 }
 
-function renderContextUsage(ctx: any, theme: Theme): string {
+function renderContextBar(ctx: any, theme: Theme): string {
 	const usage = ctx.getContextUsage?.();
-	const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 	const percent = typeof usage?.percent === "number" ? usage.percent : null;
-	const display = percent === null
-		? `?/${formatTokens(contextWindow)}`
-		: `${percent.toFixed(1)}%/${formatTokens(contextWindow)}`;
-
-	if (percent !== null && percent > 90) return theme.fg("error", display);
-	if (percent !== null && percent > 70) return theme.fg("warning", display);
-	return display;
+	
+	if (percent === null) {
+		return theme.fg("muted", "Context:") + " " + theme.fg("dim", "[??????????]") + " " + theme.fg("dim", "?%");
+	}
+	
+	const width = 10;
+	const filled = Math.round((percent / 100) * width);
+	const empty = width - filled;
+	const barColor = percent > 90 ? "error" : percent > 70 ? "warning" : "accent";
+	
+	const bar = `[${theme.fg(barColor, "█".repeat(filled))}${theme.fg("dim", "░".repeat(empty))}]`;
+	const label = theme.fg("muted", "Context:");
+	const pct = `${Math.round(percent)}%`;
+	
+	return `${label} ${bar} ${pct}`;
 }
 
 function modelLabel(ctx: any): string {
@@ -136,13 +143,15 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 					leftSide += separator + theme.fg("accent", ` ${branch}`);
 				}
 
-				// Build right side with visual hierarchy
+				// Build right side: model | thinking | Context: [bar] XX% │ $cost
+				const pipe = theme.fg("dim", " | ");
 				const model = theme.fg("accent", modelLabel(ctx));
 				const thinking = theme.fg("muted", pi.getThinkingLevel());
-				const context = renderContextUsage(ctx, theme);
+				const contextBar = renderContextBar(ctx, theme);
 				const cost = theme.fg("text", renderCost(ctx));
+				const costSep = theme.fg("dim", " │ ");
 				
-				const rightSide = [model, thinking, context, cost].join(separator);
+				const rightSide = `${model}${pipe}${thinking}${pipe}${contextBar}${costSep}${cost}`;
 
 				return responsiveFooterLines(
 					leftSide,
