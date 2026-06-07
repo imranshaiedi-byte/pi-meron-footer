@@ -688,7 +688,26 @@ class TodoOverlay {
 
   private selectOverlayTasks(): Task[] {
     if (this.hideCompletedList) return [];
-    return state.tasks.filter((task) => task.status !== "deleted");
+
+    const visible = state.tasks.filter((task) => task.status !== "deleted");
+    const open = visible.filter((task) => task.status === "pending" || task.status === "in_progress");
+    if (open.length === 0) return [];
+
+    // Show only actionable tasks, plus their ancestors so nested tasks keep context.
+    const byId = new Map(visible.map((task) => [task.id, task]));
+    const selectedIds = new Set<number>();
+
+    for (const task of open) {
+      let current: Task | undefined = task;
+      const visited = new Set<number>();
+      while (current && !visited.has(current.id)) {
+        selectedIds.add(current.id);
+        visited.add(current.id);
+        current = current.parentId !== undefined ? byId.get(current.parentId) : undefined;
+      }
+    }
+
+    return visible.filter((task) => selectedIds.has(task.id));
   }
 
   private render(theme: Theme, width: number): string[] {
@@ -739,7 +758,7 @@ class TodoOverlay {
       }
     }
     if (hidden > 0) {
-      lines.push(truncateToWidth(`${theme.fg("dim", "└─")} ${theme.fg("muted", `+${hidden} more`)}`, width, "…"));
+      lines.push(truncateToWidth(`${theme.fg("dim", "└─")} ${theme.fg("muted", `+${hidden} open ${pluralize(hidden, "task")} hidden`)}`, width, "…"));
     }
     return lines;
   }
