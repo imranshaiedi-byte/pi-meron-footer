@@ -61,12 +61,20 @@ function wrapLine(line: string, contentWidth: number): string {
   return `${chrome("│")}${pad}${padToWidth(line, contentWidth)}${pad}${chrome("│")}`;
 }
 
+function normalizeContentLine(line: string): string {
+  // Pi's native user renderer pads message rows to the provided width before
+  // this wrapper sees them. Strip ANSI and right-padding so our box can size
+  // itself to the actual prompt content instead of the full terminal width.
+  return stripAnsi(line).trimEnd();
+}
+
 function trimBlankEdges(lines: string[]): string[] {
+  const normalized = lines.map(normalizeContentLine);
   let start = 0;
-  while (start < lines.length && isBlankLine(lines[start] ?? "")) start++;
-  let end = lines.length - 1;
-  while (end >= start && isBlankLine(lines[end] ?? "")) end--;
-  return start <= end ? lines.slice(start, end + 1) : [];
+  while (start < normalized.length && isBlankLine(normalized[start] ?? "")) start++;
+  let end = normalized.length - 1;
+  while (end >= start && isBlankLine(normalized[end] ?? "")) end--;
+  return start <= end ? normalized.slice(start, end + 1) : [];
 }
 
 function patchUserMessagePrototype(): void {
