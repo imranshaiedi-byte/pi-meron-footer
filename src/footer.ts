@@ -97,41 +97,25 @@ function calcTokenStats(ctx: any): { input: number; output: number; cacheRead: n
 	return { input, output, cacheRead, cacheWrite };
 }
 
-function renderCacheBar(ctx: any, theme: Theme): string {
+function renderCachePct(ctx: any, theme: Theme): string | null {
 	const stats = calcTokenStats(ctx);
 	const totalInput = stats.input + stats.cacheRead;
+	if (totalInput === 0) return null;
 
-	const hitRate = totalInput > 0 ? Math.round((stats.cacheRead / totalInput) * 100) : 0;
-	const barWidth = 10;
-	const filled = totalInput > 0 ? Math.round((hitRate / 100) * barWidth) : 0;
-	const empty = barWidth - filled;
-	const barColor = hitRate >= 70 ? "success" : hitRate >= 30 ? "warning" : "error";
-
-	const bar = `[${theme.fg(barColor, "█".repeat(filled))}${theme.fg("dim", "░".repeat(empty))}]`;
-	const label = theme.fg("muted", "Cache:");
-	const pct = `${hitRate}%`;
-
-	return `${label} ${bar} ${pct}`;
+	const hitRate = Math.round((stats.cacheRead / totalInput) * 100);
+	return theme.fg("muted", "Cache:") + " " + theme.fg("accent", `${hitRate}%`);
 }
 
-function renderContextBar(ctx: any, theme: Theme): string {
+function renderContextPct(ctx: any, theme: Theme): string {
 	const usage = ctx.getContextUsage?.();
-	const percent = typeof usage?.percent === "number" ? usage.percent : null;
-	
+	const percent = typeof usage?.percent === "number" ? Math.round(usage.percent) : null;
+
 	if (percent === null) {
-		return theme.fg("muted", "Context:") + " " + theme.fg("dim", "[??????????]") + " " + theme.fg("dim", "?%");
+		return theme.fg("muted", "Context:") + " " + theme.fg("dim", "?%");
 	}
-	
-	const width = 10;
-	const filled = Math.round((percent / 100) * width);
-	const empty = width - filled;
-	const barColor = percent > 90 ? "error" : percent > 70 ? "warning" : "accent";
-	
-	const bar = `[${theme.fg(barColor, "█".repeat(filled))}${theme.fg("dim", "░".repeat(empty))}]`;
-	const label = theme.fg("muted", "Context:");
-	const pct = `${Math.round(percent)}%`;
-	
-	return `${label} ${bar} ${pct}`;
+
+	const pctColor = percent > 90 ? "error" : percent > 70 ? "warning" : "accent";
+	return theme.fg("muted", "Context:") + " " + theme.fg(pctColor, `${percent}%`);
 }
 
 function modelLabel(ctx: any): string {
@@ -164,15 +148,17 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 					leftSide += pipe + theme.fg("accent", branch);
 				}
 
-				// Build right side: model | thinking | Context: [bar] XX% | Cache: [bar] XX% │ $cost
+				// Build right side: model | thinking | Context: XX% | $cost
 				const model = theme.fg("accent", modelLabel(ctx));
 				const thinking = theme.fg("muted", pi.getThinkingLevel());
-				const contextBar = renderContextBar(ctx, theme);
+				const contextPct = renderContextPct(ctx, theme);
 				const cost = theme.fg("text", renderCost(ctx));
 				const costSep = theme.fg("dim", " │ ");
-				const cacheBar = renderCacheBar(ctx, theme);
+				const cachePct = renderCachePct(ctx, theme);
 				
-				const rightSide = `${model}${pipe}${thinking}${pipe}${contextBar}${pipe}${cacheBar}${costSep}${cost}`;
+				const rightSide = cachePct
+					? `${model}${pipe}${thinking}${pipe}${contextPct}${pipe}${cachePct}${costSep}${cost}`
+					: `${model}${pipe}${thinking}${pipe}${contextPct}${costSep}${cost}`;
 
 				return responsiveFooterLines(
 					leftSide,
