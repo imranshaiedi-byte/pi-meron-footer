@@ -97,15 +97,13 @@ function calcTokenStats(ctx: any): { input: number; output: number; cacheRead: n
 	return { input, output, cacheRead, cacheWrite };
 }
 
-function renderCacheBar(ctx: any, theme: Theme): string | null {
+function renderCacheBar(ctx: any, theme: Theme): string {
 	const stats = calcTokenStats(ctx);
 	const totalInput = stats.input + stats.cacheRead;
 
-	if (totalInput === 0) return null;
-
-	const hitRate = Math.round((stats.cacheRead / totalInput) * 100);
+	const hitRate = totalInput > 0 ? Math.round((stats.cacheRead / totalInput) * 100) : 0;
 	const barWidth = 10;
-	const filled = Math.round((hitRate / 100) * barWidth);
+	const filled = totalInput > 0 ? Math.round((hitRate / 100) * barWidth) : 0;
 	const empty = barWidth - filled;
 	const barColor = hitRate >= 70 ? "success" : hitRate >= 30 ? "warning" : "error";
 
@@ -174,9 +172,7 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 				const costSep = theme.fg("dim", " │ ");
 				const cacheBar = renderCacheBar(ctx, theme);
 				
-				const rightSide = cacheBar
-					? `${model}${pipe}${thinking}${pipe}${contextBar}${pipe}${cacheBar}${costSep}${cost}`
-					: `${model}${pipe}${thinking}${pipe}${contextBar}${costSep}${cost}`;
+				const rightSide = `${model}${pipe}${thinking}${pipe}${contextBar}${pipe}${cacheBar}${costSep}${cost}`;
 
 				return responsiveFooterLines(
 					leftSide,
