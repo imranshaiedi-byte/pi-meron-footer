@@ -79,11 +79,6 @@ function calcSessionCost(ctx: any): number {
 	return total;
 }
 
-function renderCost(ctx: any): string {
-	const cost = calcSessionCost(ctx);
-	return `$${cost.toFixed(3)}`;
-}
-
 function calcTokenStats(ctx: any): { input: number; output: number; cacheRead: number; cacheWrite: number } {
 	let input = 0, output = 0, cacheRead = 0, cacheWrite = 0;
 	for (const entry of ctx.sessionManager.getEntries()) {
@@ -106,7 +101,10 @@ function renderCachePct(ctx: any, theme: Theme): string | null {
 	return theme.fg("muted", "Cache:") + " " + theme.fg("accent", `${hitRate}%`);
 }
 
-function renderContextPct(ctx: any, theme: Theme): string {
+function renderContextPct(ctx: any, theme: Theme): string | null {
+	const stats = calcTokenStats(ctx);
+	if (stats.input + stats.cacheRead === 0) return null;
+
 	const usage = ctx.getContextUsage?.();
 	const percent = typeof usage?.percent === "number" ? Math.round(usage.percent) : null;
 
@@ -116,6 +114,14 @@ function renderContextPct(ctx: any, theme: Theme): string {
 
 	const pctColor = percent > 90 ? "error" : percent > 70 ? "warning" : "accent";
 	return theme.fg("muted", "Context:") + " " + theme.fg(pctColor, `${percent}%`);
+}
+
+function renderCost(ctx: any, theme: Theme): string | null {
+	const stats = calcTokenStats(ctx);
+	if (stats.input + stats.cacheRead === 0) return null;
+
+	const cost = calcSessionCost(ctx);
+	return theme.fg("text", `$${cost.toFixed(3)}`);
 }
 
 function modelLabel(ctx: any): string {
@@ -148,17 +154,20 @@ function setPaddedFooter(pi: ExtensionAPI, ctx: any): void {
 					leftSide += pipe + theme.fg("accent", branch);
 				}
 
-				// Build right side: model | thinking | Context: XX% | $cost
+				// Build right side: model | thinking | Context: XX% | Cache: XX% | $cost
 				const model = theme.fg("accent", modelLabel(ctx));
 				const thinking = theme.fg("muted", pi.getThinkingLevel());
 				const contextPct = renderContextPct(ctx, theme);
-				const cost = theme.fg("text", renderCost(ctx));
-				const costSep = theme.fg("dim", " │ ");
 				const cachePct = renderCachePct(ctx, theme);
+				const cost = renderCost(ctx, theme);
+				const costSep = theme.fg("dim", " │ ");
 				
-				const rightSide = cachePct
-					? `${model}${pipe}${thinking}${pipe}${contextPct}${pipe}${cachePct}${costSep}${cost}`
-					: `${model}${pipe}${thinking}${pipe}${contextPct}${costSep}${cost}`;
+				const stats = [contextPct, cachePct, cost].filter(Boolean);
+				const statStr = stats.length > 0
+					? pipe + stats.slice(0, -1).join(pipe) + costSep + stats[stats.length - 1]
+					: "";
+				
+				const rightSide = `${model}${pipe}${thinking}${statStr}`;
 
 				return responsiveFooterLines(
 					leftSide,
