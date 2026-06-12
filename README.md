@@ -1,6 +1,6 @@
 # pi-meron-suite
 
-A comprehensive pi extension suite providing footer/status bar, tool display overrides, and a structured `ask_user_question` tool — all with clean meron-style rendering.
+A pi extension suite providing footer/status bar and tool display overrides with clean meron-style rendering.
 
 ## Features
 
@@ -15,17 +15,6 @@ Compact, human-readable rendering for built-in tools:
 - Status dots, branch-style summaries, and diff previews
 - Clean headers like `● **Read** src/file.ts (42 lines loaded)` instead of raw tool names
 
-### ask_user_question
-Structured questionnaire tool with:
-- Up to 4 questions with 2-4 options each
-- Single-select and multi-select questions
-- "Type something." for custom answers
-- "Chat about this" to abandon the questionnaire
-- Side-by-side preview panes for visual comparisons
-- Tab navigation between questions
-- Review screen before submission
-- Compact result summary after submission
-
 ## Installation
 
 ```bash
@@ -36,7 +25,7 @@ Then restart your pi session.
 
 ## Usage
 
-The extension loads automatically on session start. The `ask_user_question` tool is available for the agent to use whenever structured clarification is needed.
+The extension loads automatically on session start.
 
 ## Theme
 
