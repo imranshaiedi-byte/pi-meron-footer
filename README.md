@@ -1,6 +1,6 @@
 # pi-meron-suite
 
-A comprehensive pi extension suite providing footer/status bar, tool display overrides, a persistent todo manager, and a structured `ask_user_question` tool — all with clean meron-style rendering.
+A comprehensive pi extension suite providing footer/status bar, tool display overrides, and a structured `ask_user_question` tool — all with clean meron-style rendering.
 
 ## Features
 
@@ -14,14 +14,6 @@ Compact, human-readable rendering for built-in tools:
 - `read`, `grep`, `find`, `ls`, `bash`, `edit`, `write`
 - Status dots, branch-style summaries, and diff previews
 - Clean headers like `● **Read** src/file.ts (42 lines loaded)` instead of raw tool names
-
-### Todo Manager
-Persistent task tree with:
-- Create, update, list, get, delete, clear actions
-- Dependencies via `blockedBy`
-- Subtasks via `parentId` (up to 3 levels deep)
-- Live overlay widget above the editor
-- Meron-style rendering with status glyphs
 
 ### ask_user_question
 Structured questionnaire tool with:
@@ -45,8 +37,6 @@ Then restart your pi session.
 ## Usage
 
 The extension loads automatically on session start. The `ask_user_question` tool is available for the agent to use whenever structured clarification is needed.
-
-The `/todos` and `/todo` commands show the current task tree.
 
 ## Theme
 
