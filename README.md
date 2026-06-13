@@ -16,21 +16,22 @@ Compact, human-readable rendering for built-in tools:
 - Clean headers like `● **Read** src/file.ts (42 lines loaded)` instead of raw tool names
 
 ### Thinking Pulse
-A live indicator for collapsed thinking blocks.
+A flicker-free live indicator for active thinking, shown in the footer.
 
-When reasoning tokens are streaming and thinking is collapsed, the static
-`Thinking...` label is replaced with a spinner and a running token estimate:
+When reasoning tokens are streaming, the footer's thinking segment shows a
+spinner and a running token estimate instead of the resting thinking level:
 
 ```
-⠹ Thinking… ≈1,284 tokens
+... | claude… | ⠹ thinking… ~1,284 | Context: 12% | ...
 ```
 
-- A braille spinner animates only while thinking is actively streaming.
-- The token estimate ticks up so you can watch tokens flow in. If it stalls,
-  the model is paused.
-- When thinking ends (or text/tool-calls begin), the label reverts to the
-  default `Thinking...`.
-- Only affects the collapsed view — expanded thinking is untouched.
+- The spinner advances **only when token deltas actually arrive** — so it can
+  never lie about activity. If it freezes mid-response, the model is paused.
+- The token estimate ticks up alongside it.
+- When thinking ends (or text/tool-calls begin), the segment reverts to the
+  normal thinking level.
+- Zero extra repaints: it reads shared state on the footer's natural streaming
+  repaints, so there's no flicker even on long sessions.
 
 ## Installation
 
